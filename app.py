@@ -4,7 +4,7 @@ import io
 import os
 
 # --- Configuration ---
-# You must place these four Excel files in the root of your GitHub repository.
+# IMPORTANT: These files MUST be in the root of your GitHub repository.
 AVAILABLE_WORDLISTS = [
     "_JLPT_Word_List MERGED SOURCE UNKNOWN.xlsx",
     "_MERGED ANKI JLPT WORDLIST.xlsx",
@@ -22,6 +22,7 @@ except ImportError:
     st.stop()
 
 try:
+    # We rely on unidic-lite being in requirements.txt to fix the MeCab error
     from fugashi import Tagger
 except ImportError:
     st.error("The 'fugashi' package is missing.")
@@ -44,7 +45,6 @@ st.markdown("Analyze lexical richness (TTR, HDD, MTLD) and **JLPT word coverage*
 def load_jlpt_wordlist_from_file(filename):
     """Loads the JLPT wordlist from the selected file bundled in the repository."""
     
-    # Check if file exists in the deployment environment
     if not os.path.exists(filename):
         st.error(f"Required file '{filename}' not found. Please ensure it is uploaded to the GitHub repo.")
         return None
@@ -53,13 +53,18 @@ def load_jlpt_wordlist_from_file(filename):
         jlpt_dict = {}
         xls = pd.ExcelFile(filename)
         for level in ALL_JLPT_LEVELS:
+            # Check for exact sheet name match as this was an issue
+            if level not in xls.sheet_names:
+                 st.error(f"Error: Sheet '{level}' not found in the selected file.")
+                 return None
+                 
             # Assuming column name = sheet name
             words = set(xls.parse(level)[level].dropna().astype(str).tolist())
             jlpt_dict[level] = words
         st.success(f"Wordlist '{filename}' loaded successfully!")
         return jlpt_dict
     except KeyError as e:
-        st.error(f"Error: Missing expected sheet or column '{e}' in '{filename}'. Check the file structure.")
+        st.error(f"Error: Missing expected column '{e}' in one of the sheets. Check the file structure.")
         return None
     except Exception as e:
         st.error(f"Error loading JLPT Wordlist from file: {e}")
@@ -79,20 +84,21 @@ def initialize_tokenizer():
 # ===============================================
 # Helper: JLPT Coverage
 # ===============================================
-def analyze_jlpt_coverage(words, selected_levels_dict):
-    """Calculates the count of words matching only the selected JLPT levels."""
+def analyze_jlpt_coverage(words, jlpt_dict):
+    """Calculates the count of words matching each JLPT level."""
     result = {}
-    for level, wordset in selected_levels_dict.items():
+    for level, wordset in jlpt_dict.items():
+        # Count words in the input that are also in the JLPT word set
         count = sum(1 for w in words if w in wordset)
         result[level] = count
     return result
 
 # ===============================================
-# Sidebar Configuration
+# Sidebar Configuration (Preserved)
 # ===============================================
 st.sidebar.header("⚙️ Configuration")
 
-# 1. Wordlist Selection
+# 1. Wordlist Selection (PRESERVED)
 selected_wordlist_filename = st.sidebar.selectbox(
     "1. Select JLPT Word List Source:",
     options=AVAILABLE_WORDLISTS,
@@ -100,27 +106,15 @@ selected_wordlist_filename = st.sidebar.selectbox(
     help="Choose one of the word list files uploaded to the repository."
 )
 
-# 2. Level Selection
-selected_levels = st.sidebar.multiselect(
-    "2. Select JLPT Levels for Coverage:",
-    options=ALL_JLPT_LEVELS,
-    default=ALL_JLPT_LEVELS,
-    help="Only words matching the selected lists will be counted in the JLPT columns."
-)
-
 # Load essential components
 jlpt_dict_all = load_jlpt_wordlist_from_file(selected_wordlist_filename)
 tagger = initialize_tokenizer()
 
-# Check for prerequisites and filter dictionary
-if jlpt_dict_all is None or tagger is None or not selected_levels:
-    if not selected_levels:
-        st.sidebar.warning("Please select at least one JLPT level.")
+if jlpt_dict_all is None or tagger is None:
     st.stop() # Stop execution if prerequisites fail
 
-# Filter the master dictionary based on user level selection
-jlpt_dict_filtered = {level: jlpt_dict_all[level] for level in selected_levels}
-
+# Use all levels for analysis, achieving the goal of N1-N5 distribution
+jlpt_dict_to_use = jlpt_dict_all 
 
 # ===============================================
 # Main Area: Process Input Files
@@ -177,7 +171,8 @@ if input_files:
             pass
 
         # --- JLPT coverage ---
-        jlpt_counts = analyze_jlpt_coverage(tokens, jlpt_dict_filtered)
+        # Analyze using the full dictionary (N5 to N1)
+        jlpt_counts = analyze_jlpt_coverage(tokens, jlpt_dict_to_use)
 
         # --- Compile Result ---
         result = {
@@ -188,9 +183,8 @@ if input_files:
             "HDD": hdd_value,
             "MTLD": mtld_value,
         }
-        # Dynamically add JLPT results (0 for unselected levels)
+        # Add N5-N1 distribution to the result
         for level in ALL_JLPT_LEVELS:
-            # Use underscores for column names
             result[level.replace(" ", "_")] = jlpt_counts.get(level, 0)
 
         results.append(result)
@@ -222,7 +216,7 @@ if input_files:
 else:
     st.info(f"""
         **Instructions:**
-        1. Select your preferred JLPT Word List and Levels using the configuration panel on the **left sidebar**.
+        1. Select your preferred JLPT Word List Source using the configuration panel on the **left sidebar**.
         2. Upload your Japanese raw text files (.txt) above.
-        3. Results will appear here, along with a download button.
+        3. Results (including N5-N1 distribution) will appear here, along with a download button.
     """)
