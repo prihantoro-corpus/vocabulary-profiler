@@ -86,7 +86,7 @@ def initialize_tokenizer():
         return None
 
 # ===============================================
-# Core N-gram Analysis (NEW)
+# Core N-gram Analysis
 # ===============================================
 
 def get_n_grams(tagged_nodes, n):
@@ -145,12 +145,13 @@ def get_unique_pos_options(corpus_data):
     return ['(Any)'] + POS_OPTIONS
 
 # ===============================================
-# Filtering Logic
+# Filtering Logic (WILDCARD ADDED HERE)
 # ===============================================
 
 def apply_n_gram_filters(df_freq, filters, n):
     """
-    Filters the N-gram DataFrame based on user inputs (words and POS tags).
+    Filters the N-gram DataFrame based on user inputs (words and POS tags),
+    supporting '*' wildcard matching for words.
     """
     df_filtered = df_freq.copy()
     
@@ -158,15 +159,22 @@ def apply_n_gram_filters(df_freq, filters, n):
         word_filter = filters.get(f'word_{i}', '').strip()
         pos_filter = filters.get(f'pos_{i}', '(Any)').strip()
         
-        # 1. Word Filtering
+        # 1. Word Filtering (with Wildcard support)
         if word_filter:
-            # We must filter the N_gram column (space-separated words)
-            def filter_by_word(row, idx, search_term):
+            # Convert user's '*' wildcard syntax to Python regex '.*'
+            # Also escape other regex special characters that might be in the word
+            regex_pattern = re.escape(word_filter).replace(r'\*', '.*')
+            
+            # The pattern must match the entire word, so anchor it (^...$)
+            regex_pattern = f"^{regex_pattern}$"
+            
+            def filter_by_word_regex(row, idx, pattern):
                 words = row['N_gram'].split(' ')
-                return words[idx] == search_term
+                # Check if the word at index idx matches the regex pattern
+                return re.match(pattern, words[idx]) is not None
             
             df_filtered = df_filtered[df_filtered.apply(
-                lambda row: filter_by_word(row, i, word_filter), axis=1
+                lambda row: filter_by_word_regex(row, i, regex_pattern), axis=1
             )]
 
         # 2. POS Filtering
@@ -650,7 +658,7 @@ if input_files:
         hdd_value = lex.hdd(draws=min(42, total_tokens)) if total_tokens > 0 else None; mtld_value = lex.mtld()
         jlpt_counts = analyze_jlpt_coverage(data['Tokens'], jlpt_dict_to_use)
 
-        # CORRECTED LINE HERE: script_exposure changed to script_distribution
+        # CORRECTED LINE: script_exposure changed to script_distribution
         result = {
             "Filename": data['Filename'], "JGRI": jgri_values[i], "MMS": data['MMS'], "LD": data['LD'], "VPS": data['VPS'], "MPN": data['MPN'],
             "Kanji_Density": kanji_density, "Script_Distribution": f"K: {script_distribution['Kanji']}% | H: {script_distribution['Hiragana']}% | T: {script_distribution['Katakana']}% | O: {script_distribution['Other']}%",
@@ -684,6 +692,7 @@ if input_files:
     )
     
     st.markdown(f"**Current N-gram length selected: {n_gram_size}-gram**")
+    st.info("Use the `*` symbol in the word filter boxes below to represent zero or more characters (e.g., `*ing` or `un*`).")
     
     # 1. Generate ALL N-grams across the corpus
     all_n_grams_df = pd.DataFrame(columns=['N_gram', 'POS_Sequence'])
@@ -694,7 +703,7 @@ if input_files:
     df_n_gram_freq = calculate_n_gram_frequency(all_n_grams_df)
 
     # 2. Dynamic Filter UI
-    st.markdown("##### Filter N-grams by Word or Part-of-Speech (POS)")
+    st.markdown("##### Filter N-grams by Word (with Wildcards) or Part-of-Speech (POS)")
     filter_cols = st.columns(n_gram_size)
     
     current_filters = {}
@@ -904,7 +913,7 @@ if input_files:
             "JGRI": "JGRI", "MMS": "MMS", "LD": "LD", "VPS": "VPS", "MPN": "MPN", 
             "Kanji_Density": "Kanji Density", "Script_Distribution": "Script Distribution", 
             "Tokens": "Tokens", "Types": "Types", "TTR": "TTR", "HDD": "HDD", "MTLD": "MTLD",
-            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT_N2": "JLPT N2", "JLPT_N1": "JLPT N1", "NA": "NA"
+            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT N3": "JLPT N3", "JLPT N2": "JLPT N2", "JLPT N1": "JLPT N1", "NA": "NA"
         })
         df_export.to_excel(writer, index=False, sheet_name='Lexical Profile')
         df_pos_percentage.to_excel(writer, index=True, sheet_name='POS Distribution')
