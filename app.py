@@ -5,6 +5,7 @@ import os
 import re
 from collections import Counter
 import numpy as np
+import matplotlib.pyplot as plt # <-- New Import
 
 # --- Configuration ---
 # File names MUST match the CSV files committed to your GitHub repository root.
@@ -40,6 +41,7 @@ st.set_page_config(
 
 st.title("🇯🇵 Japanese Lexical Profiler")
 st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word coverage.")
+
 
 # ===============================================
 # Helper Functions - Caching for Performance
@@ -156,10 +158,82 @@ def calculate_jgri(metrics_df):
     return jgri_values
 
 # ===============================================
-# Other Helper Functions
+# Helper: Plotting Functions (NEW)
 # ===============================================
+
+def plot_jlpt_coverage(df, filename="jlpt_coverage.png"):
+    """Creates a normalized stacked bar chart of JLPT coverage."""
+    
+    # 1. Prepare data (normalize to 100%)
+    df_plot = df[['Filename', 'JLPT_N5', 'JLPT_N4', 'JLPT_N3', 'JLPT_N2', 'JLPT_N1', 'NA']].copy()
+    
+    # Calculate total unique words (Types) for normalization
+    df_plot['Total_Types'] = df_plot.iloc[:, 1:].sum(axis=1)
+    
+    # Normalize counts to percentages (0-100)
+    for col in df_plot.columns[1:-1]: # Skip Filename and Total_Types
+        df_plot[col] = (df_plot[col] / df_plot['Total_Types']) * 100
+
+    df_plot = df_plot.set_index('Filename').drop(columns='Total_Types')
+
+    # Define colors (using a spectrum from light to dark/red for difficulty)
+    colors = {
+        'JLPT_N5': '#51A3A3', 
+        'JLPT_N4': '#51C4D4',
+        'JLPT_N3': '#FFD000',
+        'JLPT_N2': '#FFA500',
+        'JLPT_N1': '#FF6347',
+        'NA': '#8B0000' 
+    }
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot normalized stacked bar chart
+    df_plot.plot(kind='barh', stacked=True, color=[colors[col] for col in df_plot.columns], ax=ax)
+    
+    # Formatting
+    ax.set_title("Normalized JLPT Vocabulary Coverage (%)", fontsize=14)
+    ax.set_xlabel("Percentage of Unique Words (%)", fontsize=12)
+    ax.set_ylabel("Text File", fontsize=12)
+    ax.legend(title="Vocabulary Level", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
+def plot_jgri_comparison(df, filename="jgri_comparison.png"):
+    """Creates a bar chart comparing JGRI scores across texts."""
+    
+    df_plot = df[['Filename', 'JGRI']].set_index('Filename')
+    
+    # Define colors: Positive/Negative relative to 0
+    colors = ['#1f77b4' if x >= 0 else '#d62728' for x in df_plot['JGRI']]
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    df_plot['JGRI'].plot(kind='bar', color=colors, ax=ax)
+    
+    # Add horizontal line at 0 (corpus mean)
+    ax.axhline(0, color='gray', linestyle='--')
+    
+    # Formatting
+    ax.set_title("JGRI Comparison (Relative Grammatical Complexity)", fontsize=14)
+    ax.set_xlabel("Text File", fontsize=12)
+    ax.set_ylabel("JGRI Score (Z-Score Average)", fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
+# ===============================================
+# Other Helper Functions (Script, Kanji, JLPT, POS)
+# ===============================================
+# (These functions remain the same as the prior version)
+
 def analyze_script_distribution(text):
-    """Calculates the percentage of Kanji, Hiragana, Katakana, and Romaji/Other."""
     total_chars = len(text)
     if total_chars == 0:
         return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}
@@ -175,7 +249,6 @@ def analyze_script_distribution(text):
     return percentages
 
 def analyze_kanji_density(text):
-    """Calculates the average number of Kanji characters per sentence."""
     sentences = re.split(r'[。！？\n]', text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
     if not sentences:
@@ -186,7 +259,6 @@ def analyze_kanji_density(text):
     return round(density, 2)
 
 def analyze_jlpt_coverage(tokens, jlpt_dict):
-    """Calculates word counts for N5-N1 levels and adds an 'NA' category."""
     unique_tokens_in_text = set(tokens)
     result = {}
     total_known_words = set()
@@ -199,7 +271,6 @@ def analyze_jlpt_coverage(tokens, jlpt_dict):
     return result
 
 def analyze_pos_distribution(tagged_nodes, filename):
-    """Calculates the raw counts and percentage distribution of ALL POS categories."""
     if not tagged_nodes:
         return {"Filename": filename}, {"Filename": filename}
     pos_tags = [
@@ -365,8 +436,27 @@ if input_files:
     # --- DISPLAY SECTION ---
     # =========================================================================
 
-    # --- 2A. MAIN SUMMARY TABLE (Lexical, Structural, Coverage) ---
+    # --- 2A. VISUALIZATIONS (NEW SECTION) ---
     df_results = pd.DataFrame(results)
+
+    st.subheader("3. Visualizations")
+    
+    if len(df_results) >= 1:
+        # Plot 1: JLPT Coverage (Normalized)
+        jlpt_plot_file = plot_jlpt_coverage(df_results, filename="jlpt_coverage.png")
+        st.image(jlpt_plot_file, caption="Normalized JLPT Vocabulary Coverage (Percentage of Types)")
+
+        # Plot 2: JGRI Comparison (Only useful if more than one file is present)
+        if len(df_results) > 1:
+            jgri_plot_file = plot_jgri_comparison(df_results, filename="jgri_comparison.png")
+            st.image(jgri_plot_file, caption="JGRI Comparison (Relative Grammatical Complexity)")
+        else:
+            st.info("Upload at least two files to compare JGRI scores effectively.")
+    
+    st.markdown("---")
+
+
+    # --- 2B. MAIN SUMMARY TABLE (Lexical, Structural, Coverage) ---
     st.subheader("Summary Table (Lexical, Structural & Readability Metrics)")
     
     # --- Define Column Configuration for Tooltips and Formatting ---
@@ -424,7 +514,7 @@ if input_files:
     st.dataframe(df_interpretation.set_index('JGRI Value'), use_container_width=True)
     
     st.markdown("---")
-    
+
     # Filter columns to ensure consistent order (including all components)
     sorted_columns = ["Filename", "JGRI", "MMS", "LD", "VPS", "MPN", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
     for level in ALL_OUTPUT_LEVELS:
@@ -435,7 +525,7 @@ if input_files:
     # Display the final table with column configuration (tooltips)
     st.dataframe(df_results, column_config=column_configuration, use_container_width=True)
 
-    # --- 2B. DETAILED POS DISTRIBUTION TABLE ---
+    # --- 2C. DETAILED POS DISTRIBUTION TABLE ---
     st.subheader("Detailed Part-of-Speech (POS) Distribution")
     st.markdown("This table shows the percentage of **all** detected grammatical categories for each file.")
     
@@ -445,7 +535,7 @@ if input_files:
 
     st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
     
-    # --- 2C. RAW JGRI COMPONENTS TABLE (Keeping for debug/full data in Excel) ---
+    # --- 2D. RAW JGRI COMPONENTS TABLE (Keeping for debug/full data in Excel) ---
     with st.expander("Show Raw JGRI Components (Original Data for MMS, LD, VPS, MPN)"):
         st.markdown("This table provides the original raw values used to calculate the JGRI index. These values are also in the main table.")
         st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
