@@ -4,15 +4,16 @@ import io
 import os
 
 # --- Configuration ---
-# IMPORTANT: These files MUST be in the root of your GitHub repository.
-AVAILABLE_WORDLISTS = [
-    "_JLPT_Word_List MERGED SOURCE UNKNOWN.xlsx",
-    "_MERGED ANKI JLPT WORDLIST.xlsx",
-    "_Merged BLUSKYO.xlsx",
-    "_jlpt_vocab-Kaggle.xlsx"
-]
+# File names MUST match the CSV files committed to your GitHub repository root.
+JLPT_FILE_MAP = {
+    "JLPT N5": "unknown_source_N5.csv",
+    "JLPT N4": "unknown_source_N4.csv",
+    "JLPT N3": "unknown_source_N3.csv",
+    "JLPT N2": "unknown_source_N2.csv",
+    "JLPT N1": "unknown_source_N1.csv",
+}
 
-ALL_JLPT_LEVELS = ["JLPT N5", "JLPT N4", "JLPT N3", "JLPT N2", "JLPT N1"]
+ALL_JLPT_LEVELS = list(JLPT_FILE_MAP.keys())
 
 # --- Import Libraries (Assuming they are in requirements.txt) ---
 try:
@@ -41,62 +42,43 @@ st.markdown("Analyze lexical richness (TTR, HDD, MTLD) and **JLPT word coverage 
 # Helper Functions - Caching for Performance
 # ===============================================
 
-@st.cache_data(show_spinner="Loading and processing JLPT Wordlist...")
-def load_jlpt_wordlist_from_file(filename):
+@st.cache_data(show_spinner="Loading JLPT Wordlists from CSVs...")
+def load_jlpt_wordlist():
     """
-    Loads the JLPT wordlist from the selected file.
-    It searches for a column named 'Word' or 'Level' (case-insensitive) in each sheet 
-    to extract the vocabulary list.
+    Loads all five JLPT wordlists from local CSV files using pd.read_csv for speed.
+    Assumes the words are in the first data column (index 0).
     """
+    jlpt_dict = {}
     
-    if not os.path.exists(filename):
-        st.error(f"Required file '{filename}' not found. Please ensure it is uploaded to the GitHub repo.")
-        return None
+    for level_name, filename in JLPT_FILE_MAP.items():
+        if not os.path.exists(filename):
+            st.error(f"Required CSV file '{filename}' not found in the repository root.")
+            return None
 
-    try:
-        jlpt_dict = {}
-        xls = pd.ExcelFile(filename)
-        
-        for level in ALL_JLPT_LEVELS:
-            if level not in xls.sheet_names:
-                 st.error(f"Error: Sheet '{level}' not found in the selected file.")
-                 st.stop()
+        try:
+            # Read CSV quickly. Assume first row is header (header=0).
+            # We use usecols=[0, 1] to limit reading only the first two columns, 
+            # and then select the appropriate column for words.
+            df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
             
-            # Read the sheet
-            df = xls.parse(level)
+            # --- WORD COLUMN LOGIC ---
+            # Assume the words are in the first column found in the dataframe (index 0)
+            if df.empty:
+                 st.warning(f"CSV file {filename} is empty.")
+                 words = set()
+            else:
+                 # Get the name of the first column
+                 word_column = df.columns[0]
+                 words = set(df[word_column].astype(str).tolist())
+                 
+            jlpt_dict[level_name] = words
             
-            # --- REVISED LOGIC: Find the 'Word' or 'Level' column ---
-            word_column = None
+        except Exception as e:
+            st.error(f"Error reading CSV file '{filename}': {e}")
+            return None
             
-            # Search for 'word' header first (highest priority)
-            for col in df.columns:
-                if isinstance(col, str) and col.strip().lower() == 'word':
-                    word_column = col
-                    break
-            
-            # Fallback: If 'Word' isn't found, try 'Level'
-            if word_column is None:
-                for col in df.columns:
-                    if isinstance(col, str) and col.strip().lower() == 'level':
-                        word_column = col
-                        break
-            
-            if word_column is None:
-                st.error(f"Error in sheet '{level}': Could not find a column header named 'Word' or 'Level'.")
-                st.stop()
-            # ---------------------------------------------
-
-            # Extract words from the identified column
-            words = set(df[word_column].dropna().astype(str).tolist())
-            jlpt_dict[level] = words
-        
-        st.success(f"Wordlist '{filename}' loaded successfully!")
-        return jlpt_dict
-        
-    except Exception as e:
-        st.error(f"Error loading JLPT Wordlist from file: {e}")
-        st.stop()
-        return None
+    st.success("JLPT Wordlists loaded successfully from CSVs!")
+    return jlpt_dict
 
 @st.cache_resource(show_spinner="Initializing Fugashi Tokenizer...")
 def initialize_tokenizer():
@@ -123,36 +105,33 @@ def analyze_jlpt_coverage(words, jlpt_dict):
     return result
 
 # ===============================================
-# Sidebar Configuration
+# Sidebar & Initialization
 # ===============================================
-st.sidebar.header("⚙️ Configuration")
-
-# 1. Wordlist Selection (PRESERVED)
-selected_wordlist_filename = st.sidebar.selectbox(
-    "1. Select JLPT Word List Source:",
-    options=AVAILABLE_WORDLISTS,
-    index=0,
-    help="Choose one of the word list files uploaded to the repository."
-)
 
 # Load essential components
-jlpt_dict_all = load_jlpt_wordlist_from_file(selected_wordlist_filename)
+jlpt_dict_to_use = load_jlpt_wordlist()
 tagger = initialize_tokenizer()
 
-# We use all levels for analysis to show the full N1-N5 distribution
-jlpt_dict_to_use = jlpt_dict_all 
+if jlpt_dict_to_use is None or tagger is None:
+    st.stop() # Stop execution if prerequisites fail
 
-# ===============================================
-# Main Area: Process Input Files
-# ===============================================
+# --- Sidebar Configuration (Upload files here as requested) ---
+st.sidebar.header("1. Upload Raw Text Files")
 
-st.header("1. Upload Raw Text Files")
-input_files = st.file_uploader(
+input_files = st.sidebar.file_uploader(
     "Upload one or more **.txt** files for analysis.",
     type=["txt"],
     accept_multiple_files=True,
-    key="input_uploader"
+    key="input_uploader",
+    help="The files will be analyzed against the single pre-loaded JLPT word list."
 )
+
+st.sidebar.header("2. Word List Used")
+st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LEVELS)} levels).")
+
+# ===============================================
+# Main Area: Process and Display
+# ===============================================
 
 results = []
 if input_files:
@@ -188,7 +167,7 @@ if input_files:
         unique_tokens = lex.terms
         ttr = lex.ttr
 
-        # HDD Calculation (Use total_tokens for max draws if needed)
+        # HDD Calculation
         hdd_value = None
         try:
             draws = min(42, total_tokens) if total_tokens > 0 else 0
@@ -243,12 +222,7 @@ if input_files:
         file_name="lexical_profile_results.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-# --- Instructions when no files are uploaded ---
+    
 else:
-    st.info(f"""
-        **Instructions:**
-        1. Select your preferred JLPT Word List Source using the configuration panel on the **left sidebar**.
-        2. Upload your Japanese raw text files (.txt) above.
-        3. Results (including N5-N1 distribution) will appear here, along with a download button.
-    """)
+    st.header("Upload Files to Begin")
+    st.info("Please upload your Japanese text files (.txt) using the **sidebar**.")
