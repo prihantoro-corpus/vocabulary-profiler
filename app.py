@@ -78,7 +78,7 @@ TRANSLATIONS = {
     },
     'ID': {
         'LANG_NAME': 'Bahasa Indonesia',
-        'TITLE': "🇯🇵 Profiler Leksikal Jepang",
+        'TITLE': "🇯🇵 Profiler Kosakata Bahasa Jepang",
         'SUBTITLE': "Menganalisis kekayaan leksikal, kompleksitas struktural, dan cakupan kata JLPT.",
         'MANUAL_LINK': "https://docs.google.com/document/d/1SvfMQjsTm8uLI0PTwSOL1lTEiLhVUFArb6Q0lRHSiZU/edit?usp=sharing",
         'MANUAL_TEXT': "Panduan Pengguna dan Interpretasi Hasil",
