@@ -4,6 +4,7 @@ import io
 import os
 import re
 from collections import Counter
+import numpy as np # <-- NEW IMPORT
 
 # --- Configuration ---
 JLPT_FILE_MAP = {
@@ -45,38 +46,29 @@ st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word 
 
 @st.cache_data(show_spinner="Loading JLPT Wordlists from CSVs...")
 def load_jlpt_wordlist():
-    """
-    Loads all five JLPT wordlists from local CSV files using pd.read_csv for speed.
-    """
+    # ... (function body remains identical to previous version) ...
     jlpt_dict = {}
-    
     for level_name, filename in JLPT_FILE_MAP.items():
         if not os.path.exists(filename):
             st.error(f"Required CSV file '{filename}' not found in the repository root.")
             return None
-
         try:
             df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
-            
             if df.empty:
-                 st.warning(f"CSV file {filename} is empty.")
                  words = set()
             else:
                  word_column = df.columns[0]
                  words = set(df[word_column].astype(str).tolist())
-                 
             jlpt_dict[level_name] = words
-            
         except Exception as e:
             st.error(f"Error reading CSV file '{filename}': {e}")
             return None
-            
     st.success("JLPT Wordlists loaded successfully from CSVs!")
     return jlpt_dict
 
 @st.cache_resource(show_spinner="Initializing Fugashi Tokenizer...")
 def initialize_tokenizer():
-    """Initializes the Fugashi Tagger."""
+    # ... (function body remains identical to previous version) ...
     try:
         tagger = Tagger()
         st.success("Fugashi tokenizer loaded successfully!")
@@ -88,105 +80,136 @@ def initialize_tokenizer():
         return None
 
 # ===============================================
-# Helper: POS Distribution Analysis (REVISED)
+# Helper: JGRI Component Analysis (NEW)
 # ===============================================
 
-def analyze_pos_distribution(tagged_nodes, filename):
-    """
-    Calculates the raw counts and percentage distribution of ALL POS categories.
-    Returns a dictionary of POS percentages and raw counts.
-    """
-    if not tagged_nodes:
-        return {"Filename": filename}, {"Filename": filename}
-
-    # 1. Extract POS tags from all nodes
-    pos_tags = [
-        node.feature.pos1 
-        for node in tagged_nodes 
-        if node.surface and node.feature.pos1
-    ]
+def analyze_jgri_components(text, tagged_nodes):
+    """Calculates the raw values for the four core JGRI components."""
     
-    if not pos_tags:
-        return {"Filename": filename}, {"Filename": filename}
-
-    total_tokens = len(pos_tags)
+    # 1. POS Counting
+    pos_counts = Counter(node.feature.pos1 for node in tagged_nodes if node.surface and node.feature.pos1)
     
-    # 2. Count the frequency of each tag
-    pos_counts = Counter(pos_tags)
+    Nouns = pos_counts.get('名詞', 0)
+    Verbs = pos_counts.get('動詞', 0)
+    Adjectives = pos_counts.get('形容詞', 0)
+    Adverbs = pos_counts.get('副詞', 0)
     
-    # 3. Prepare percentage and count data dictionaries
-    pos_percentages = {"Filename": filename}
-    pos_raw_counts = {"Filename": filename}
+    Total_Morphemes = len(tagged_nodes) # Proxy for morpheme count
+    
+    # 2. Sentence Counting
+    sentences = re.split(r'[。！？\n]', text.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
+    Num_Sentences = len(sentences)
 
-    for tag, count in pos_counts.items():
-        percentage = round((count / total_tokens) * 100, 1)
+    # Handle division by zero
+    if Total_Morphemes == 0 or Nouns == 0 or Num_Sentences == 0:
+        return {'MMS': 0.0, 'LD': 0.0, 'VPS': 0.0, 'MPN': 0.0}
+
+    # Component 1: Mean Morphemes per Sentence (MMS)
+    MMS = Total_Morphemes / Num_Sentences
+    
+    # Component 2: Lexical Density (LD)
+    LD = (Nouns + Verbs + Adjectives + Adverbs) / Total_Morphemes
+    
+    # Component 3: Verbs per Sentence (VPS)
+    VPS = Verbs / Num_Sentences
+    
+    # Component 4: Modifiers per Noun (MPN) (Adjectives + Verbs/Relative Clauses)
+    MPN = (Adjectives + Verbs) / Nouns
+    
+    return {'MMS': MMS, 'LD': LD, 'VPS': VPS, 'MPN': MPN}
+
+def calculate_jgri(metrics_df):
+    """Performs Z-score normalization and calculates the final JGRI index."""
+    
+    jgri_values = []
+    
+    # Calculate Mean (mu) and Standard Deviation (sigma) for the corpus
+    mu = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].mean()
+    sigma = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].std()
+
+    # Handle cases where sigma is zero (e.g., if only one text is uploaded)
+    # If sigma is 0, the z-score is defined as 0.
+    sigma = sigma.replace(0, 1e-6) 
+    
+    for index, row in metrics_df.iterrows():
+        raw_values = row[['MMS', 'LD', 'VPS', 'MPN']]
         
-        # Use simple Japanese names/codes for clarity in the column header
-        pos_percentages[tag] = percentage
-        pos_raw_counts[tag] = count
+        # Calculate Z-score for each component
+        z_mms = (raw_values['MMS'] - mu['MMS']) / sigma['MMS']
+        z_ld = (raw_values['LD'] - mu['LD']) / sigma['LD']
+        z_vps = (raw_values['VPS'] - mu['VPS']) / sigma['VPS']
+        z_mpn = (raw_values['MPN'] - mu['MPN']) / sigma['MPN']
         
-    return pos_percentages, pos_raw_counts
+        # Composite formula: JGRI = (zMMS + zLD + zVPS + zMPN) / 4
+        jgri = (z_mms + z_ld + z_vps + z_mpn) / 4
+        jgri_values.append(round(jgri, 3))
+        
+    return jgri_values
 
 # ===============================================
-# Helper: Script and Density Analysis
+# Other Helper Functions (Remain the same)
 # ===============================================
-
 def analyze_script_distribution(text):
-    """Calculates the percentage of Kanji, Hiragana, Katakana, and Romaji/Other."""
+    # ... (identical to previous version) ...
     total_chars = len(text)
     if total_chars == 0:
         return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}
-
     patterns = {
         "Kanji": r'[\u4E00-\u9FFF]',
         "Hiragana": r'[\u3040-\u309F]',
         "Katakana": r'[\u30A0-\u30FF]',
     }
-
     counts = {name: len(re.findall(pattern, text)) for name, pattern in patterns.items()}
     counted_chars = sum(counts.values())
     counts["Other"] = total_chars - counted_chars
-    
     percentages = {name: round((count / total_chars) * 100, 1) for name, count in counts.items()}
-    
     return percentages
 
 def analyze_kanji_density(text):
-    """Calculates the average number of Kanji characters per sentence."""
-    
+    # ... (identical to previous version) ...
     sentences = re.split(r'[。！？\n]', text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
-
     if not sentences:
         return 0.0
-
     total_kanji = len(re.findall(r'[\u4E00-\u9FFF]', text))
     num_sentences = len(sentences)
     density = total_kanji / num_sentences
-    
     return round(density, 2)
 
-# ===============================================
-# Helper: JLPT Coverage
-# ===============================================
 def analyze_jlpt_coverage(tokens, jlpt_dict):
-    """
-    Calculates word counts for N5-N1 levels and adds an 'NA' category for 
-    words not covered by any list.
-    """
+    # ... (identical to previous version) ...
     unique_tokens_in_text = set(tokens)
     result = {}
     total_known_words = set()
-
     for level, wordset in jlpt_dict.items():
         count = sum(1 for w in unique_tokens_in_text if w in wordset)
         result[level] = count
         total_known_words.update(w for w in unique_tokens_in_text if w in wordset)
-
     na_count = len(unique_tokens_in_text) - len(total_known_words)
     result["NA"] = na_count
-    
     return result
+
+def analyze_pos_distribution(tagged_nodes, filename):
+    # ... (identical to previous version) ...
+    if not tagged_nodes:
+        return {"Filename": filename}, {"Filename": filename}
+    pos_tags = [
+        node.feature.pos1 
+        for node in tagged_nodes 
+        if node.surface and node.feature.pos1
+    ]
+    if not pos_tags:
+        return {"Filename": filename}, {"Filename": filename}
+    total_tokens = len(pos_tags)
+    pos_counts = Counter(pos_tags)
+    pos_percentages = {"Filename": filename}
+    pos_raw_counts = {"Filename": filename}
+    for tag, count in pos_counts.items():
+        percentage = round((count / total_tokens) * 100, 1)
+        pos_percentages[tag] = percentage
+        pos_raw_counts[tag] = count
+    return pos_percentages, pos_raw_counts
 
 # ===============================================
 # Sidebar & Initialization
@@ -217,19 +240,22 @@ st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LE
 # Main Area: Process and Display
 # ===============================================
 
+results_raw = [] # Stores all raw data, including JGRI components
 results = []
-pos_percentage_results = [] # New list to store POS data
-pos_count_results = [] # New list to store raw POS counts
+pos_percentage_results = []
+pos_count_results = []
 
 if input_files:
     st.header("2. Analysis Results")
     st.markdown("Coverage columns report the count of **unique words** from the text found in that category.")
     
-    progress_bar = st.progress(0, text="Processing files...")
+    progress_bar = st.progress(0, text="--- PASS 1: Analyzing components and raw metrics ---")
+    
+    # --- PASS 1: Calculate all raw metrics for the corpus ---
+    corpus_data = []
     
     for i, uploaded_file in enumerate(input_files):
         filename = uploaded_file.name
-        
         content_bytes = uploaded_file.read()
         try:
              text = content_bytes.decode('utf-8')
@@ -239,31 +265,52 @@ if input_files:
              continue
              
         text = text.strip()
-
         if not text:
             st.warning(f"File {filename} is empty, skipped.")
             progress_bar.progress((i + 1) / len(input_files))
             continue
         
-        # --- Core Analysis ---
-        
         # 1. Tokenization (Full Fugashi output)
         tagged_nodes = list(tagger(text))
-
-        # 2. Extract surface tokens for lexical metrics
-        tokens = [word.surface for word in tagged_nodes]
-        text_tokenized = " ".join(tokens)
-
-        # 3. Structural and POS Analysis
-        script_distribution = analyze_script_distribution(text)
-        kanji_density = analyze_kanji_density(text)
         
-        # Calculate full POS distribution (percentages and raw counts)
-        pos_percentages, pos_counts = analyze_pos_distribution(tagged_nodes, filename)
-        pos_percentage_results.append(pos_percentages)
-        pos_count_results.append(pos_counts)
+        # 2. Calculate JGRI RAW components
+        jgri_raw_components = analyze_jgri_components(text, tagged_nodes)
         
+        # 3. Store raw data for Pass 2 (Normalization)
+        corpus_data.append({
+            'Filename': filename,
+            'Text': text, # Keep text for re-analysis in Pass 2
+            'Tagged_Nodes': tagged_nodes,
+            'Tokens': [word.surface for word in tagged_nodes],
+            **jgri_raw_components
+        })
+        
+        progress_bar.progress((i + 1) / len(input_files), text=f"PASS 1: Analyzed {i+1} of {len(input_files)} files.")
+
+    # Stop if no files were processed successfully
+    if not corpus_data:
+        progress_bar.empty()
+        st.error("No valid text files were processed.")
+        st.stop()
+
+    # Create raw metrics DataFrame for normalization
+    df_raw_metrics = pd.DataFrame(corpus_data)
+    
+    # --- PASS 2: Calculate JGRI and final results ---
+    progress_bar.progress(0, text="--- PASS 2: Calculating JGRI and final results ---")
+    
+    # Calculate JGRI (Normalization step)
+    jgri_values = calculate_jgri(df_raw_metrics)
+    
+    for i, data in enumerate(corpus_data):
+        
+        # --- Structural and POS Analysis ---
+        script_distribution = analyze_script_distribution(data['Text'])
+        kanji_density = analyze_kanji_density(data['Text'])
+        pos_percentages, pos_counts = analyze_pos_distribution(data['Tagged_Nodes'], data['Filename'])
+
         # 4. Lexical Richness Metrics
+        text_tokenized = " ".join(data['Tokens'])
         lex = LexicalRichness(text_tokenized)
         total_tokens = lex.words
         unique_tokens = lex.terms
@@ -272,11 +319,13 @@ if input_files:
         mtld_value = lex.mtld()
         
         # 5. JLPT coverage
-        jlpt_counts = analyze_jlpt_coverage(tokens, jlpt_dict_to_use)
+        jlpt_counts = analyze_jlpt_coverage(data['Tokens'], jlpt_dict_to_use)
 
-        # --- Compile Main Summary Result ---
+        # --- Compile Final Summary Result ---
         result = {
-            "Filename": filename,
+            "Filename": data['Filename'],
+            # Readability Index
+            "JGRI": jgri_values[i], # <-- NEW
             # Structural/Grammatical Metrics
             "Kanji_Density": kanji_density,
             "Script_Distribution": f"K: {script_distribution['Kanji']}% | H: {script_distribution['Hiragana']}% | T: {script_distribution['Katakana']}% | O: {script_distribution['Other']}%",
@@ -292,8 +341,10 @@ if input_files:
             result[level.replace(" ", "_")] = jlpt_counts.get(level, 0)
 
         results.append(result)
+        pos_percentage_results.append(pos_percentages)
+        pos_count_results.append(pos_counts)
         
-        progress_bar.progress((i + 1) / len(input_files), text=f"Processed {i+1} of {len(input_files)} files.")
+        progress_bar.progress((i + 1) / len(corpus_data), text=f"PASS 2: Completed analysis for {data['Filename']}.")
 
     progress_bar.empty()
     st.success("Analysis complete!")
@@ -304,10 +355,11 @@ if input_files:
 
     # --- 2A. MAIN SUMMARY TABLE (Lexical, Structural, Coverage) ---
     df_results = pd.DataFrame(results)
-    st.subheader("Summary Table (Lexical & Structural Metrics)")
+    st.subheader("Summary Table (Lexical, Structural & Readability Metrics)")
     
     # Manually define column names for clarity/tooltips 
     display_names = {
+        "JGRI": "JGRI ❓", # <-- NEW
         "Kanji_Density": "Kanji Density ❓",
         "Script_Distribution": "Script Distribution ❓",
         "Tokens": "Tokens ❓",
@@ -325,7 +377,8 @@ if input_files:
     
     st.markdown("""
         **Column Explanations (Hover over the '❓' below):**
-        * **Kanji Density:** Average Kanji characters per sentence (Higher = more complex).
+        * **JGRI (Japanese Grammatical Readability Index):** A composite, corpus-relative index combining Mean Morphemes per Sentence, Lexical Density, Verbs per Sentence, and Modifiers per Noun. **Higher values indicate greater morphosyntactic complexity.**
+        * **Kanji Density:** Average Kanji characters per sentence.
         * **Script Distribution:** Percentage breakdown (K=Kanji, H=Hiragana, T=Katakana, O=Other).
         * **Tokens/Types:** Total words / Unique words.
         * **TTR/HDD/MTLD:** Lexical richness metrics.
@@ -333,7 +386,7 @@ if input_files:
     """)
 
     # Filter columns to ensure consistent order
-    sorted_columns = ["Filename", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
+    sorted_columns = ["Filename", "JGRI", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
     for level in ALL_OUTPUT_LEVELS:
         sorted_columns.append(level.replace(" ", "_"))
         
@@ -341,24 +394,28 @@ if input_files:
     
     st.dataframe(df_results.rename(columns=display_names), use_container_width=True)
 
-    # --- 2B. DETAILED POS DISTRIBUTION TABLE (NEW) ---
+    # --- 2B. DETAILED POS DISTRIBUTION TABLE ---
     st.subheader("Detailed Part-of-Speech (POS) Distribution")
     st.markdown("This table shows the percentage of **all** detected grammatical categories for each file.")
     
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
-    # Set Filename as index for better viewing
     df_pos_percentage = df_pos_percentage.set_index('Filename').fillna(0).T 
     df_pos_percentage.columns.name = "POS Distribution (%)"
 
     st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
+    
+    # --- 2C. RAW JGRI COMPONENTS TABLE (OPTIONAL but useful for debugging) ---
+    with st.expander("Show Raw JGRI Components (MMS, LD, VPS, MPN)"):
+        st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
+
 
     # --- DOWNLOAD BUTTONS ---
     
-    # Convert Main DataFrame to Excel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
         df_results.to_excel(writer, index=False, sheet_name='Lexical Profile')
         df_pos_percentage.to_excel(writer, index=True, sheet_name='POS Distribution')
+        df_raw_metrics.to_excel(writer, index=False, sheet_name='Raw JGRI Components')
         
     st.download_button(
         label="⬇️ Download All Results as Excel",
