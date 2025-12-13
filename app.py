@@ -2,10 +2,9 @@ import streamlit as st
 import pandas as pd
 import io
 import os
-import re # <-- New Import
+import re
 
 # --- Configuration ---
-# File names MUST match the CSV files committed to your GitHub repository root.
 JLPT_FILE_MAP = {
     "JLPT N5": "unknown_source_N5.csv",
     "JLPT N4": "unknown_source_N4.csv",
@@ -17,7 +16,7 @@ JLPT_FILE_MAP = {
 ALL_JLPT_LEVELS = list(JLPT_FILE_MAP.keys())
 ALL_OUTPUT_LEVELS = ALL_JLPT_LEVELS + ["NA"]
 
-# --- Import Libraries (Check requirements.txt for external dependencies) ---
+# --- Import Libraries (Assuming they are in requirements.txt) ---
 try:
     from lexicalrichness import LexicalRichness
 except ImportError:
@@ -25,7 +24,6 @@ except ImportError:
     st.stop()
 
 try:
-    # Requires 'fugashi' and 'unidic-lite' in requirements.txt
     from fugashi import Tagger
 except ImportError:
     st.error("The 'fugashi' package is missing. Please check requirements.txt.")
@@ -49,7 +47,6 @@ def load_jlpt_wordlist():
     """
     Loads all five JLPT wordlists from local CSV files using pd.read_csv for speed.
     """
-    # ... (function body remains identical to previous version) ...
     jlpt_dict = {}
     
     for level_name, filename in JLPT_FILE_MAP.items():
@@ -90,7 +87,7 @@ def initialize_tokenizer():
         return None
 
 # ===============================================
-# Helper: Script and Density Analysis (NEW)
+# Helper: Script and Density Analysis
 # ===============================================
 
 def analyze_script_distribution(text):
@@ -99,21 +96,16 @@ def analyze_script_distribution(text):
     if total_chars == 0:
         return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}
 
-    # Define Unicode ranges using regex (optimized for typical Japanese text)
     patterns = {
         "Kanji": r'[\u4E00-\u9FFF]',
         "Hiragana": r'[\u3040-\u309F]',
         "Katakana": r'[\u30A0-\u30FF]',
-        # Romaji, punctuation, numbers, spaces, etc., are counted as "Other"
     }
 
     counts = {name: len(re.findall(pattern, text)) for name, pattern in patterns.items()}
-    
-    # Calculate "Other" by subtracting known types from the total
     counted_chars = sum(counts.values())
     counts["Other"] = total_chars - counted_chars
     
-    # Convert counts to percentages, rounded to one decimal place
     percentages = {name: round((count / total_chars) * 100, 1) for name, count in counts.items()}
     
     return percentages
@@ -131,7 +123,6 @@ def analyze_kanji_density(text):
     total_kanji = len(re.findall(r'[\u4E00-\u9FFF]', text))
     num_sentences = len(sentences)
 
-    # Kanji Density = Total Kanji / Total Sentences
     density = total_kanji / num_sentences
     
     return round(density, 2)
@@ -148,14 +139,11 @@ def analyze_jlpt_coverage(tokens, jlpt_dict):
     result = {}
     total_known_words = set()
 
-    # 1. Calculate counts for N5-N1 and build a master set of known words
     for level, wordset in jlpt_dict.items():
         count = sum(1 for w in unique_tokens_in_text if w in wordset)
         result[level] = count
-        
         total_known_words.update(w for w in unique_tokens_in_text if w in wordset)
 
-    # 2. Calculate NA (Not Applicable/Not Covered)
     na_count = len(unique_tokens_in_text) - len(total_known_words)
     result["NA"] = na_count
     
@@ -265,40 +253,39 @@ if input_files:
     df_results = pd.DataFrame(results)
     
     st.subheader("Summary Table")
-
-    # Define Column Explanations (for hover/help tooltips)
-    col_config = {
-        "Filename": st.column_config.Column("Filename"),
-        # Structural Metrics
-        "Kanji_Density": st.column_config.Column(
-            "Kanji Density ❓", 
-            help="Average number of Kanji characters per sentence. Higher density indicates higher structural complexity.",
-            format="%.2f"
-        ),
-        "Script_Distribution": st.column_config.Column(
-            "Script Distribution ❓", 
-            help="Percentage distribution of Kanji (K), Hiragana (H), Katakana (T), and Other (O) characters in the text. ",
-            width="large"
-        ),
-        # Lexical Metrics
-        "Tokens": st.column_config.Column("Tokens ❓", help="Total number of words (Tokens, N) in the text."),
-        "Types": st.column_config.Column("Types ❓", help="Total number of unique words (Types, V) in the text."),
-        "TTR": st.column_config.Column("TTR ❓", help="Type-Token Ratio (V/N). Measures lexical richness. Higher score = more diverse vocabulary."),
-        "HDD": st.column_config.Column("HDD ❓", help="Hellinger's D. Length-independent measure of lexical diversity."),
-        "MTLD": st.column_config.Column("MTLD ❓", help="Measure of Textual Lexical Diversity. Estimates how long the text maintains diversity."),
-        # JLPT Coverage Metrics
-        **{f"JLPT_{level.replace(' ', '_')}": st.column_config.Column(
-            f"{level.replace(' ', '_')} ❓", 
-            help=f"Count of unique words in the text found in the {level} word list."
-        ) for level in ALL_JLPT_LEVELS},
-        "NA": st.column_config.Column(
-            "NA ❓", 
-            help="Count of unique words NOT found in the N5, N4, N3, N2, or N1 word lists (Not Covered).",
-        ),
+    
+    # --- UPDATED DISPLAY LOGIC: Use simple st.dataframe ---
+    # We must provide the explanations separately since st.column_config failed.
+    
+    # Manually rename columns for cleaner display and tooltips
+    display_names = {
+        "Kanji_Density": "Kanji Density ❓",
+        "Script_Distribution": "Script Distribution ❓",
+        "Tokens": "Tokens ❓",
+        "Types": "Types ❓",
+        "TTR": "TTR ❓",
+        "HDD": "HDD ❓",
+        "MTLD": "MTLD ❓",
+        "JLPT_N5": "JLPT_N5 ❓",
+        "JLPT_N4": "JLPT_N4 ❓",
+        "JLPT_N3": "JLPT_N3 ❓",
+        "JLPT_N2": "JLPT_N2 ❓",
+        "JLPT_N1": "JLPT_N1 ❓",
+        "NA": "NA ❓",
     }
+    
+    # Apply tooltips using a simplified method for wide compatibility
+    st.markdown("""
+        **Column Explanations (Hover over the '❓' below):**
+        * **Kanji Density:** Average Kanji characters per sentence (Higher = more complex).
+        * **Script Distribution:** Percentage breakdown (K=Kanji, H=Hiragana, T=Katakana, O=Other). 
+        * **Tokens/Types:** Total words / Unique words.
+        * **TTR/HDD/MTLD:** Lexical richness metrics (Higher scores = more diverse vocabulary).
+        * **JLPT/NA:** Count of unique words covered by the JLPT level or Not Covered (NA).
+    """)
 
-    # Display the DataFrame using the enhanced configuration
-    st.dataframe(df_results, column_config=col_config, use_container_width=True)
+    st.dataframe(df_results.rename(columns=display_names), use_container_width=True)
+    # -----------------------------------------------------
 
     # Convert DataFrame to Excel in memory for download
     output = io.BytesIO()
