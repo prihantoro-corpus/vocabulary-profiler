@@ -6,7 +6,7 @@ import re
 from collections import Counter
 import numpy as np
 import matplotlib.pyplot as plt 
-import matplotlib.ticker as ticker # <-- New Import for formatting plots
+import matplotlib.ticker as ticker 
 
 # --- Configuration ---
 # File names MUST match the CSV files committed to your GitHub repository root.
@@ -185,7 +185,7 @@ def plot_jlpt_coverage(df, filename="jlpt_coverage.png"):
     
     df_plot.plot(kind='barh', stacked=True, color=[colors[col] for col in df_plot.columns], ax=ax)
     
-    ax.set_title("Normalized JLPT Vocabulary Coverage (%)", fontsize=14)
+    ax.set_title("JLPT Vocabulary Coverage (Proportion of Unique Words)", fontsize=14)
     ax.set_xlabel("Percentage of Unique Words (%)", fontsize=12)
     ax.set_ylabel("Text File", fontsize=12)
     ax.legend(title="Vocabulary Level", bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -272,33 +272,39 @@ def plot_mtld_comparison(df, filename="mtld_comparison.png"):
     plt.close(fig)
     return filename
 
-def plot_token_type_curve(corpus_data, filename="token_type_curve.png"):
+def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_curve.png"):
     """
-    Plots the cumulative Type (unique word) count vs. Token (total word) count 
-    for each text. Requires the raw token list from corpus_data.
+    Plots the rolling mean Type-Token Ratio (TTR) over the text length.
+    Shows the trend of vocabulary diversity.
     """
     fig, ax = plt.subplots(figsize=(10, 6))
 
     for data in corpus_data:
         tokens = data['Tokens']
-        if not tokens:
+        filename_label = data['Filename']
+        if not tokens or len(tokens) < window_size:
+            ax.text(0.5, 0.5, f"'{filename_label}' too short for window size {window_size}", 
+                    transform=ax.transAxes, ha='center', color='red')
             continue
             
-        token_count = []
-        type_count = []
-        unique_words = set()
+        ttr_values = []
         
-        for i, token in enumerate(tokens):
-            token_count.append(i + 1)
-            unique_words.add(token)
-            type_count.append(len(unique_words))
+        # Calculate rolling TTR
+        for i in range(len(tokens) - window_size + 1):
+            window = tokens[i:i + window_size]
+            ttr = len(set(window)) / window_size
+            ttr_values.append(ttr)
         
-        ax.plot(token_count, type_count, label=data['Filename'])
+        # The x-axis is positioned at the start of the window
+        x_axis = np.arange(window_size, len(tokens) + 1)
         
-    ax.set_title("Token-Type Curve (Vocabulary Growth)", fontsize=14)
+        ax.plot(x_axis, ttr_values, label=filename_label)
+        
+    ax.set_title(f"Rolling Mean TTR Curve (Window Size: {window_size})", fontsize=14)
     ax.set_xlabel("Tokens (Total Words)", fontsize=12)
-    ax.set_ylabel("Types (Unique Words)", fontsize=12)
-    ax.legend(title="Text File", loc='lower right')
+    ax.set_ylabel("Rolling TTR (0 to 1)", fontsize=12)
+    ax.legend(title="Text File", loc='upper right')
+    ax.set_ylim(0, 1) # TTR must be between 0 and 1
     
     # Use thousands separator for readability
     formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ','))
@@ -309,11 +315,10 @@ def plot_token_type_curve(corpus_data, filename="token_type_curve.png"):
     plt.close(fig)
     return filename
 
+
 # ===============================================
 # Other Helper Functions (Script, Kanji, JLPT, POS)
 # ===============================================
-# (Remaining helper functions are the same as prior version)
-
 def analyze_script_distribution(text):
     total_chars = len(text)
     if total_chars == 0:
@@ -409,7 +414,7 @@ results_raw = []
 results = []
 pos_percentage_results = []
 pos_count_results = []
-corpus_data = [] # Defined here to be accessible for plotting
+corpus_data = [] 
 
 if input_files:
     st.header("2. Analysis Results")
@@ -537,7 +542,7 @@ if input_files:
             
         st.markdown("---")
         
-        col3, col4, col5 = st.columns(3)
+        col3, col4 = st.columns(2)
 
         # Plot 3: JGRI Comparison (Structural Complexity) - Column 3
         with col3:
@@ -552,12 +557,14 @@ if input_files:
             mtld_plot_file = plot_mtld_comparison(df_results, filename="mtld_comparison.png")
             st.image(mtld_plot_file, caption="MTLD Comparison (Lexical Diversity Score)")
 
-        # Plot 5: Token-Type Curve (Vocabulary Growth) - Column 5 (Full width plot)
-        with col5:
-             # This plot is usually more effective across a wider area, but we can place it here.
-             token_type_plot_file = plot_token_type_curve(corpus_data, filename="token_type_curve.png")
-             st.image(token_type_plot_file, caption="Token-Type Curve (Vocabulary Acquisition)")
-             
+        st.markdown("---")
+
+        # Plot 5: Rolling Mean TTR Curve (Full width plot)
+        st.subheader("Rolling Mean TTR Curve")
+        st.markdown("This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.")
+        rolling_ttr_plot_file = plot_rolling_ttr_curve(corpus_data, filename="rolling_ttr_curve.png")
+        st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
+        
         st.markdown("---")
 
     # --- 2B. MAIN SUMMARY TABLE (Lexical, Structural, Coverage) ---
