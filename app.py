@@ -3,7 +3,7 @@ import pandas as pd
 import io
 import os
 import re
-from collections import Counter # <-- New Import
+from collections import Counter
 
 # --- Configuration ---
 JLPT_FILE_MAP = {
@@ -88,19 +88,18 @@ def initialize_tokenizer():
         return None
 
 # ===============================================
-# Helper: POS Distribution Analysis (NEW)
+# Helper: POS Distribution Analysis (REVISED)
 # ===============================================
 
-def analyze_pos_distribution(tagged_nodes):
+def analyze_pos_distribution(tagged_nodes, filename):
     """
-    Calculates the percentage distribution of the top POS categories 
-    (from Fugashi's word.feature.pos1).
+    Calculates the raw counts and percentage distribution of ALL POS categories.
+    Returns a dictionary of POS percentages and raw counts.
     """
     if not tagged_nodes:
-        return ""
+        return {"Filename": filename}, {"Filename": filename}
 
     # 1. Extract POS tags from all nodes
-    # Filter out empty nodes and nodes with no tag
     pos_tags = [
         node.feature.pos1 
         for node in tagged_nodes 
@@ -108,32 +107,32 @@ def analyze_pos_distribution(tagged_nodes):
     ]
     
     if not pos_tags:
-        return ""
+        return {"Filename": filename}, {"Filename": filename}
 
     total_tokens = len(pos_tags)
     
     # 2. Count the frequency of each tag
     pos_counts = Counter(pos_tags)
     
-    # 3. Get the top 5 most common tags
-    top_tags = pos_counts.most_common(5)
-    
-    # 4. Format for output
-    output_parts = []
-    for tag, count in top_tags:
+    # 3. Prepare percentage and count data dictionaries
+    pos_percentages = {"Filename": filename}
+    pos_raw_counts = {"Filename": filename}
+
+    for tag, count in pos_counts.items():
         percentage = round((count / total_tokens) * 100, 1)
-        # Use simple abbreviations for common tags (e.g., Noun, Verb, Particle)
-        if len(tag) > 4: tag = tag[:4] # Truncate for display simplicity
-        output_parts.append(f"{tag}:{percentage}%")
         
-    return " | ".join(output_parts)
+        # Use simple Japanese names/codes for clarity in the column header
+        pos_percentages[tag] = percentage
+        pos_raw_counts[tag] = count
+        
+    return pos_percentages, pos_raw_counts
 
 # ===============================================
 # Helper: Script and Density Analysis
 # ===============================================
 
 def analyze_script_distribution(text):
-    # ... (function body remains identical to previous version) ...
+    """Calculates the percentage of Kanji, Hiragana, Katakana, and Romaji/Other."""
     total_chars = len(text)
     if total_chars == 0:
         return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}
@@ -153,7 +152,8 @@ def analyze_script_distribution(text):
     return percentages
 
 def analyze_kanji_density(text):
-    # ... (function body remains identical to previous version) ...
+    """Calculates the average number of Kanji characters per sentence."""
+    
     sentences = re.split(r'[。！？\n]', text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
 
@@ -170,7 +170,10 @@ def analyze_kanji_density(text):
 # Helper: JLPT Coverage
 # ===============================================
 def analyze_jlpt_coverage(tokens, jlpt_dict):
-    # ... (function body remains identical to previous version) ...
+    """
+    Calculates word counts for N5-N1 levels and adds an 'NA' category for 
+    words not covered by any list.
+    """
     unique_tokens_in_text = set(tokens)
     result = {}
     total_known_words = set()
@@ -215,6 +218,9 @@ st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LE
 # ===============================================
 
 results = []
+pos_percentage_results = [] # New list to store POS data
+pos_count_results = [] # New list to store raw POS counts
+
 if input_files:
     st.header("2. Analysis Results")
     st.markdown("Coverage columns report the count of **unique words** from the text found in that category.")
@@ -224,7 +230,6 @@ if input_files:
     for i, uploaded_file in enumerate(input_files):
         filename = uploaded_file.name
         
-        # Read file content
         content_bytes = uploaded_file.read()
         try:
              text = content_bytes.decode('utf-8')
@@ -252,7 +257,11 @@ if input_files:
         # 3. Structural and POS Analysis
         script_distribution = analyze_script_distribution(text)
         kanji_density = analyze_kanji_density(text)
-        pos_distribution = analyze_pos_distribution(tagged_nodes) # <-- NEW
+        
+        # Calculate full POS distribution (percentages and raw counts)
+        pos_percentages, pos_counts = analyze_pos_distribution(tagged_nodes, filename)
+        pos_percentage_results.append(pos_percentages)
+        pos_count_results.append(pos_counts)
         
         # 4. Lexical Richness Metrics
         lex = LexicalRichness(text_tokenized)
@@ -265,13 +274,12 @@ if input_files:
         # 5. JLPT coverage
         jlpt_counts = analyze_jlpt_coverage(tokens, jlpt_dict_to_use)
 
-        # --- Compile Result ---
+        # --- Compile Main Summary Result ---
         result = {
             "Filename": filename,
             # Structural/Grammatical Metrics
             "Kanji_Density": kanji_density,
             "Script_Distribution": f"K: {script_distribution['Kanji']}% | H: {script_distribution['Hiragana']}% | T: {script_distribution['Katakana']}% | O: {script_distribution['Other']}%",
-            "POS_Distribution": pos_distribution, # <-- NEW
             # Lexical Metrics
             "Tokens": total_tokens,
             "Types": unique_tokens,
@@ -290,16 +298,18 @@ if input_files:
     progress_bar.empty()
     st.success("Analysis complete!")
 
-    # --- Display and Download Output ---
+    # =========================================================================
+    # --- DISPLAY SECTION ---
+    # =========================================================================
+
+    # --- 2A. MAIN SUMMARY TABLE (Lexical, Structural, Coverage) ---
     df_results = pd.DataFrame(results)
+    st.subheader("Summary Table (Lexical & Structural Metrics)")
     
-    st.subheader("Summary Table")
-    
-    # Manually define column names for clarity/tooltips (since st.column_config failed)
+    # Manually define column names for clarity/tooltips 
     display_names = {
         "Kanji_Density": "Kanji Density ❓",
         "Script_Distribution": "Script Distribution ❓",
-        "POS_Distribution": "POS Distribution ❓", # <-- NEW
         "Tokens": "Tokens ❓",
         "Types": "Types ❓",
         "TTR": "TTR ❓",
@@ -317,14 +327,13 @@ if input_files:
         **Column Explanations (Hover over the '❓' below):**
         * **Kanji Density:** Average Kanji characters per sentence (Higher = more complex).
         * **Script Distribution:** Percentage breakdown (K=Kanji, H=Hiragana, T=Katakana, O=Other).
-        * **POS Distribution:** Top 5 grammatical categories (e.g., Noun, Verb, Particle) as percentages.
         * **Tokens/Types:** Total words / Unique words.
         * **TTR/HDD/MTLD:** Lexical richness metrics.
         * **JLPT/NA:** Count of unique words covered by the JLPT level or Not Covered (NA).
     """)
 
-    # Filter columns to ensure consistent order (optional, but good practice)
-    sorted_columns = ["Filename", "Kanji_Density", "Script_Distribution", "POS_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
+    # Filter columns to ensure consistent order
+    sorted_columns = ["Filename", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
     for level in ALL_OUTPUT_LEVELS:
         sorted_columns.append(level.replace(" ", "_"))
         
@@ -332,16 +341,29 @@ if input_files:
     
     st.dataframe(df_results.rename(columns=display_names), use_container_width=True)
 
-    # Convert DataFrame to Excel in memory for download
+    # --- 2B. DETAILED POS DISTRIBUTION TABLE (NEW) ---
+    st.subheader("Detailed Part-of-Speech (POS) Distribution")
+    st.markdown("This table shows the percentage of **all** detected grammatical categories for each file.")
+    
+    df_pos_percentage = pd.DataFrame(pos_percentage_results)
+    # Set Filename as index for better viewing
+    df_pos_percentage = df_pos_percentage.set_index('Filename').fillna(0).T 
+    df_pos_percentage.columns.name = "POS Distribution (%)"
+
+    st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
+
+    # --- DOWNLOAD BUTTONS ---
+    
+    # Convert Main DataFrame to Excel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
-        # Use the original, non-renamed column names for the output file
         df_results.to_excel(writer, index=False, sheet_name='Lexical Profile')
-    
+        df_pos_percentage.to_excel(writer, index=True, sheet_name='POS Distribution')
+        
     st.download_button(
-        label="⬇️ Download Results as Excel",
+        label="⬇️ Download All Results as Excel",
         data=output.getvalue(),
-        file_name="lexical_profile_results.xlsx",
+        file_name="lexical_profile_results_full.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
