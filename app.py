@@ -8,6 +8,210 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.ticker as ticker 
 
+# ===============================================
+# --- 0. MULTILINGUAL CONFIGURATION ---
+# ===============================================
+
+TRANSLATIONS = {
+    'EN': {
+        'LANG_NAME': 'English',
+        'TITLE': "🇯🇵 Japanese Lexical Profiler",
+        'SUBTITLE': "Analyze lexical richness, structural complexity, and JLPT word coverage.",
+        'MANUAL_LINK': "https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing",
+        'MANUAL_TEXT': "User Guide and Results Interpretation",
+        # Sidebar
+        'UPLOAD_HEADER': "1. Upload Raw Text Files",
+        'UPLOAD_HELPER': "The files will be analyzed against the single pre-loaded JLPT word list.",
+        'UPLOAD_BUTTON': "Upload one or more **.txt** files for analysis.",
+        'WORDLIST_HEADER': "2. Word List Used",
+        'WORDLIST_INFO': "Using the pre-loaded **Unknown Source** list",
+        'NGRAM_HEADER': "3. N-gram Settings",
+        'NGRAM_RADIO': "Select N-gram Length (N)",
+        'KWIC_CONTEXT_HEADER': "Concordance Context",
+        'KWIC_LEFT': "Words to Left",
+        'KWIC_RIGHT': "Words to Right",
+        # Main Results
+        'ANALYSIS_HEADER': "2. Analysis Results",
+        'COVERAGE_NOTE': "Coverage columns report the count of **unique words** from the text found in that category.",
+        'LOADING_JLPT': "Loading JLPT Wordlists from CSVs...",
+        'LOADING_FUGA': "Initializing Fugashi Tokenizer...",
+        'PASS1_TEXT': "--- PASS 1: Analyzing components and raw metrics ---",
+        'PASS2_TEXT': "--- PASS 2: Calculating JGRI and final results ---",
+        'SUCCESS_LOAD': "Wordlists loaded successfully from CSVs!",
+        'SUCCESS_TOKEN': "Fugashi tokenizer loaded successfully!",
+        'ANALYSIS_COMPLETE': "Analysis complete!",
+        'NO_FILES': "No valid text files were processed.",
+        'EMPTY_FILE': "is empty, skipped.",
+        'DECODE_ERROR': "Failed to decode",
+        'UPLD_TO_BEGIN': "Please upload your Japanese text files (.txt) using the **sidebar**.",
+        
+        # N-gram & KWIC
+        'NGRAM_MAIN_HEADER': "3. N-gram Frequency Analysis & Concordance",
+        'NGRAM_WILDCARD_INFO': "Use the `*` symbol in the word filter boxes below to represent zero or more characters (e.g., `*ing` or `本*`).",
+        'NGRAM_CURRENT': "**Current N-gram length selected:",
+        'NGRAM_FILTER_HEADER': "Filter N-grams by Word (with Wildcards) or Part-of-Speech (POS)",
+        'NGRAM_FREQ_HEADER': "N-gram Frequency List",
+        'NGRAM_TOTAL_UNIQUE': "**Total unique",
+        'NGRAM_MATCHING_FILTER': "grams matching filter:",
+        'CONCORDANCE_HEADER': "Concordance (Keyword In Context - KWIC)",
+        'CONCORDANCE_LINES': "**Total concordance lines generated:",
+        'KWIC_HELP_LEFT': "words to the left",
+        'KWIC_HELP_RIGHT': "words to the right",
+        'KWIC_HELP_KW': "The filtered",
+        'DOWNLOAD_NGRAM': "⬇️ Download Full Filtered {n}-gram List ({count} unique items)",
+        'DOWNLOAD_KWIC': "⬇️ Download Full Concordance List ({count} lines)",
+        
+        # Visualizations
+        'VISUAL_HEADER': "4. Visualizations",
+        'JGRI_COMPARE_NOTE': "JGRI comparison requires at least two files.",
+        'ROLLING_TTR_EXPANDER': "Show Rolling Mean TTR Curve (Vocabulary Trend)",
+        'ROLLING_TTR_NOTE': "This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.",
+        
+        # Summary Tables
+        'SUMMARY_HEADER': "5. Summary Table (Lexical, Structural & Readability Metrics)",
+        'JGRI_EXP_HEADER': "JGRI (Japanese Grammatical Readability Index) Explanation",
+        'POS_HEADER': "6. Detailed Part-of-Speech (POS) Distribution",
+        'POS_NOTE': "This table shows the percentage of **all** detected grammatical categories for each file.",
+        'RAW_JGRI_EXPANDER': "Show Raw JGRI Components (Original Data for MMS, LD, VPS, MPN)",
+        'RAW_JGRI_NOTE': "This table provides the original raw values used to calculate the JGRI index. These values are also in the main table.",
+        'DOWNLOAD_ALL': "⬇️ Download All Results as Excel (Includes N-gram Data)",
+    },
+    'ID': {
+        'LANG_NAME': 'Bahasa Indonesia',
+        'TITLE': "🇯🇵 Profiler Leksikal Jepang",
+        'SUBTITLE': "Menganalisis kekayaan leksikal, kompleksitas struktural, dan cakupan kata JLPT.",
+        'MANUAL_LINK': "https://docs.google.com/document/d/1SvfMQjsTm8uLI0PTwSOL1lTEiLhVUFArb6Q0lRHSiZU/edit?usp=sharing",
+        'MANUAL_TEXT': "Panduan Pengguna dan Interpretasi Hasil",
+        # Sidebar
+        'UPLOAD_HEADER': "1. Unggah Berkas Teks Mentah",
+        'UPLOAD_HELPER': "Berkas akan dianalisis terhadap daftar kata JLPT yang dimuat sebelumnya.",
+        'UPLOAD_BUTTON': "Unggah satu atau lebih berkas **.txt** untuk analisis.",
+        'WORDLIST_HEADER': "2. Daftar Kata yang Digunakan",
+        'WORDLIST_INFO': "Menggunakan daftar **Sumber Tidak Diketahui** yang dimuat sebelumnya",
+        'NGRAM_HEADER': "3. Pengaturan N-gram",
+        'NGRAM_RADIO': "Pilih Panjang N-gram (N)",
+        'KWIC_CONTEXT_HEADER': "Konteks Konkordansi",
+        'KWIC_LEFT': "Kata di Kiri",
+        'KWIC_RIGHT': "Kata di Kanan",
+        # Main Results
+        'ANALYSIS_HEADER': "2. Hasil Analisis",
+        'COVERAGE_NOTE': "Kolom cakupan melaporkan hitungan **kata unik** dari teks yang ditemukan dalam kategori tersebut.",
+        'LOADING_JLPT': "Memuat Daftar Kata JLPT dari CSV...",
+        'LOADING_FUGA': "Memulai Tokenizer Fugashi...",
+        'PASS1_TEXT': "--- LANGKAH 1: Menganalisis komponen dan metrik mentah ---",
+        'PASS2_TEXT': "--- LANGKAH 2: Menghitung JGRI dan hasil akhir ---",
+        'SUCCESS_LOAD': "Daftar Kata JLPT berhasil dimuat dari CSV!",
+        'SUCCESS_TOKEN': "Tokenizer Fugashi berhasil dimuat!",
+        'ANALYSIS_COMPLETE': "Analisis selesai!",
+        'NO_FILES': "Tidak ada berkas teks yang valid diproses.",
+        'EMPTY_FILE': "kosong, dilewati.",
+        'DECODE_ERROR': "Gagal mendekode",
+        'UPLD_TO_BEGIN': "Mohon unggah berkas teks Jepang Anda (.txt) menggunakan **sidebar**.",
+        
+        # N-gram & KWIC
+        'NGRAM_MAIN_HEADER': "3. Analisis Frekuensi N-gram & Konkordansi",
+        'NGRAM_WILDCARD_INFO': "Gunakan simbol `*` di kotak filter kata di bawah untuk mewakili nol atau lebih karakter (misalnya, `*ing` atau `本*`).",
+        'NGRAM_CURRENT': "**Panjang N-gram saat ini yang dipilih:",
+        'NGRAM_FILTER_HEADER': "Filter N-gram berdasarkan Kata (dengan Wildcard) atau Jenis Kata (POS)",
+        'NGRAM_FREQ_HEADER': "Daftar Frekuensi N-gram",
+        'NGRAM_TOTAL_UNIQUE': "**Total unik",
+        'NGRAM_MATCHING_FILTER': "gram yang cocok dengan filter:",
+        'CONCORDANCE_HEADER': "Konkordansi (Keyword In Context - KWIC)",
+        'CONCORDANCE_LINES': "**Total baris konkordansi yang dihasilkan:",
+        'KWIC_HELP_LEFT': "kata di kiri",
+        'KWIC_HELP_RIGHT': "kata di kanan",
+        'KWIC_HELP_KW': "Kata kunci filter",
+        'DOWNLOAD_NGRAM': "⬇️ Unduh Daftar {n}-gram Terfilter Penuh ({count} item unik)",
+        'DOWNLOAD_KWIC': "⬇️ Unduh Daftar Konkordansi Penuh ({count} baris)",
+
+        # Visualizations
+        'VISUAL_HEADER': "4. Visualisasi",
+        'JGRI_COMPARE_NOTE': "Perbandingan JGRI memerlukan minimal dua berkas.",
+        'ROLLING_TTR_EXPANDER': "Tampilkan Kurva Rolling Mean TTR (Tren Kosakata)",
+        'ROLLING_TTR_NOTE': "Plot ini menunjukkan tren keragaman kosakata sepanjang teks. Garis datar yang tinggi menunjukkan kosakata yang kaya berkelanjutan.",
+        
+        # Summary Tables
+        'SUMMARY_HEADER': "5. Tabel Ringkasan (Metrik Leksikal, Struktural & Keterbacaan)",
+        'JGRI_EXP_HEADER': "Penjelasan JGRI (Indeks Keterbacaan Gramatikal Jepang)",
+        'POS_HEADER': "6. Distribusi Detil Jenis Kata (POS)",
+        'POS_NOTE': "Tabel ini menunjukkan persentase **semua** kategori gramatikal yang terdeteksi untuk setiap berkas.",
+        'RAW_JGRI_EXPANDER': "Tampilkan Komponen Mentah JGRI (Data Asli untuk MMS, LD, VPS, MPN)",
+        'RAW_JGRI_NOTE': "Tabel ini menyediakan nilai mentah asli yang digunakan untuk menghitung indeks JGRI. Nilai-nilai ini juga ada di tabel utama.",
+        'DOWNLOAD_ALL': "⬇️ Unduh Semua Hasil sebagai Excel (Termasuk Data N-gram)",
+    },
+    'JP': {
+        'LANG_NAME': '日本語',
+        'TITLE': "🇯🇵 日本語語彙プロファイラ",
+        'SUBTITLE': "語彙の豊富さ、構造的な複雑さ、およびJLPTの単語カバー率を分析します。",
+        'MANUAL_LINK': "https://docs.google.com/document/d/1tJB4lDKBUPBHHHB8Vj0fZyXtwH-lNDeF9tifDS7lzFQ/edit?usp=sharing",
+        'MANUAL_TEXT': "ユーザーガイドと結果の解釈",
+        # Sidebar
+        'UPLOAD_HEADER': "1. 生テキストファイルのアップロード",
+        'UPLOAD_HELPER': "ファイルは事前にロードされたJLPT単語リストに対して分析されます。",
+        'UPLOAD_BUTTON': "分析用の** .txt **ファイルを1つ以上アップロードしてください。",
+        'WORDLIST_HEADER': "2. 使用される単語リスト",
+        'WORDLIST_INFO': "事前ロードされた**不明なソース**リストを使用しています",
+        'NGRAM_HEADER': "3. N-gram設定",
+        'NGRAM_RADIO': "N-gramの長さ (N) を選択",
+        'KWIC_CONTEXT_HEADER': "コンコーダンスの文脈",
+        'KWIC_LEFT': "左側の単語数",
+        'KWIC_RIGHT': "右側の単語数",
+        # Main Results
+        'ANALYSIS_HEADER': "2. 分析結果",
+        'COVERAGE_NOTE': "カバー率の列は、そのカテゴリで見つかったテキストからの**ユニークな単語**の数を報告します。",
+        'LOADING_JLPT': "JLPT単語リストをCSVからロード中...",
+        'LOADING_FUGA': "Fugashiトークナイザを初期化中...",
+        'PASS1_TEXT': "--- フェーズ1: コンポーネントと生メトリクスの分析 ---",
+        'PASS2_TEXT': "--- フェーズ2: JGRIと最終結果の計算 ---",
+        'SUCCESS_LOAD': "JLPT単語リストがCSVから正常にロードされました！",
+        'SUCCESS_TOKEN': "Fugashiトークナイザが正常にロードされました！",
+        'ANALYSIS_COMPLETE': "分析完了！",
+        'NO_FILES': "有効なテキストファイルは処理されませんでした。",
+        'EMPTY_FILE': "は空です。スキップされました。",
+        'DECODE_ERROR': "デコードに失敗しました",
+        'UPLD_TO_BEGIN': "サイドバーを使用して日本語テキストファイル(.txt)をアップロードしてください。",
+        
+        # N-gram & KWIC
+        'NGRAM_MAIN_HEADER': "3. N-gram頻度分析とコンコーダンス",
+        'NGRAM_WILDCARD_INFO': "単語フィルターボックスでアスタリスク（`*`）記号を使用して、ゼロ個以上の文字を表します（例：`*ing` や `本*`）。",
+        'NGRAM_CURRENT': "**現在選択されているN-gramの長さ:",
+        'NGRAM_FILTER_HEADER': "単語（ワイルドカード付き）または品詞（POS）でN-gramをフィルタリング",
+        'NGRAM_FREQ_HEADER': "N-gram頻度リスト",
+        'NGRAM_TOTAL_UNIQUE': "**合計ユニーク",
+        'NGRAM_MATCHING_FILTER': "個のN-gramがフィルターに一致:",
+        'CONCORDANCE_HEADER': "コンコーダンス（キーワードインコンテキスト - KWIC）",
+        'CONCORDANCE_LINES': "**生成されたコンコーダンスラインの合計:",
+        'KWIC_HELP_LEFT': "左側の単語数",
+        'KWIC_HELP_RIGHT': "右側の単語数",
+        'KWIC_HELP_KW': "フィルタリングされた",
+        'DOWNLOAD_NGRAM': "⬇️ 完全なフィルタリング済み{n}-gramリストをダウンロード（ユニークなアイテム{count}個）",
+        'DOWNLOAD_KWIC': "⬇️ 完全なコンコーダンスリストをダウンロード（{count}行）",
+
+        # Visualizations
+        'VISUAL_HEADER': "4. 可視化",
+        'JGRI_COMPARE_NOTE': "JGRI比較には最低2つのファイルが必要です。",
+        'ROLLING_TTR_EXPANDER': "ローリング平均TTRカーブを表示（語彙の傾向）",
+        'ROLLING_TTR_NOTE': "このプロットは、テキストの長さにわたる語彙の多様性の傾向を示しています。平坦で高い線は、持続的に豊富な語彙を示します。",
+        
+        # Summary Tables
+        'SUMMARY_HEADER': "5. 要約テーブル（語彙、構造、読みやすさのメトリクス）",
+        'JGRI_EXP_HEADER': "JGRI（日本語文法可読性インデックス）の説明",
+        'POS_HEADER': "6. 詳細な品詞（POS）分布",
+        'POS_NOTE': "このテーブルは、各ファイルで検出された**すべて**の文法カテゴリのパーセンテージを示しています。",
+        'RAW_JGRI_EXPANDER': "生JGRIコンポーネントを表示（MMS、LD、VPS、MPNのオリジナルデータ）",
+        'RAW_JGRI_NOTE': "このテーブルは、JGRIインデックスの計算に使用された元の生値を提供します。これらの値はメインテーブルにも含まれています。",
+        'DOWNLOAD_ALL': "⬇️ すべての結果をExcelとしてダウンロード（N-gramデータを含む）",
+    },
+}
+
+# ===============================================
+# --- LANGUAGE SELECTION ---
+# ===============================================
+lang_options = {'English': 'EN', 'Bahasa Indonesia': 'ID', '日本語': 'JP'}
+selected_lang_name = st.sidebar.selectbox("Language / Bahasa / 言語", options=list(lang_options.keys()), key='language_selector')
+T = TRANSLATIONS[lang_options[selected_lang_name]]
+
+
 # --- Configuration ---
 # File names MUST match the CSV files committed to your GitHub repository root.
 JLPT_FILE_MAP = {
@@ -39,19 +243,19 @@ except ImportError:
 
 # --- Layout and Title ---
 st.set_page_config(
-    page_title="🇯🇵 Japanese Lexical Profiler",
+    page_title=T['TITLE'],
     layout="wide"
 )
 
-st.title("🇯🇵 Japanese Lexical Profiler")
-st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word coverage.")
+st.title(T['TITLE'])
+st.markdown(T['SUBTITLE'])
 
 # ===============================================
 # Helper Functions - Caching for Performance
 # ===============================================
 
-@st.cache_data(show_spinner="Loading JLPT Wordlists from CSVs...")
-def load_jlpt_wordlist():
+@st.cache_data(show_spinner=T['LOADING_JLPT'])
+def load_jlpt_wordlist(T):
     """Loads all five JLPT wordlists."""
     jlpt_dict = {}
     for level_name, filename in JLPT_FILE_MAP.items():
@@ -69,15 +273,15 @@ def load_jlpt_wordlist():
         except Exception as e:
             st.error(f"Error reading CSV file '{filename}': {e}")
             return None
-    st.success("JLPT Wordlists loaded successfully from CSVs!")
+    st.success(T['SUCCESS_LOAD'])
     return jlpt_dict
 
-@st.cache_resource(show_spinner="Initializing Fugashi Tokenizer...")
-def initialize_tokenizer():
+@st.cache_resource(show_spinner=T['LOADING_FUGA'])
+def initialize_tokenizer(T):
     """Initializes the Fugashi Tagger."""
     try:
         tagger = Tagger()
-        st.success("Fugashi tokenizer loaded successfully!")
+        st.success(T['SUCCESS_TOKEN'])
         return tagger
     except Exception as e:
         st.error(f"Error initializing Fugashi: {e}")
@@ -261,290 +465,117 @@ def generate_concordance(corpus_data, filters, n_gram_size, left_context, right_
     return pd.DataFrame(concordance_list)
 
 # ===============================================
-# Helper: JGRI Component Analysis (CORRECTED SYNTAX)
+# Analysis and Plotting Functions (UNMODIFIED LOGIC)
 # ===============================================
 
 def analyze_jgri_components(text, tagged_nodes):
-    """Calculates the raw values for the four core JGRI components."""
-    
-    # 1. POS Counting
-    pos_counts = Counter(node.feature.pos1 for node in tagged_nodes if node.surface and node.feature.pos1)
-    
-    Nouns = pos_counts.get('名詞', 0)
-    Verbs = pos_counts.get('動詞', 0)
-    Adjectives = pos_counts.get('形容詞', 0)
-    Adverbs = pos_counts.get('副詞', 0)
-    
-    Total_Morphemes = len(tagged_nodes) # Proxy for morpheme count
-    
-    # 2. Sentence Counting
-    sentences = re.split(r'[。！？\n]', text.strip())
-    sentences = [s.strip() for s in sentences if s.strip()]
-    Num_Sentences = len(sentences)
-
-    # Handle division by zero
-    if Total_Morphemes == 0 or Nouns == 0 or Num_Sentences == 0:
-        return {'MMS': 0.0, 'LD': 0.0, 'VPS': 0.0, 'MPN': 0.0}
-
-    # Component 1: Mean Morphemes per Sentence (MMS)
-    MMS = Total_Morphemes / Num_Sentences
-    
-    # Component 2: Lexical Density (LD)
-    LD = (Nouns + Verbs + Adjectives + Adverbs) / Total_Morphemes
-    
-    # Component 3: Verbs per Sentence (VPS)
-    VPS = Verbs / Num_Sentences
-    
-    # Component 4: Modifiers per Noun (MPN) (Adjectives + Verbs/Relative Clauses)
-    MPN = (Adjectives + Verbs) / Nouns
-    
-    return {'MMS': MMS, 'LD': LD, 'VPS': VPS, 'MPN': MPN}
-
-def calculate_jgri(metrics_df):
-    """Performs Z-score normalization and calculates the final JGRI index."""
-    
-    jgri_values = []
-    
-    # Calculate Mean (mu) and Standard Deviation (sigma) for the corpus
-    mu = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].mean()
-    sigma = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].std()
-
-    # Handle cases where sigma is zero (e.g., if only one text is uploaded)
-    sigma = sigma.replace(0, 1e-6) 
-    
-    for index, row in metrics_df.iterrows():
-        raw_values = row[['MMS', 'LD', 'VPS', 'MPN']]
-        
-        # Calculate Z-score for each component
-        z_mms = (raw_values['MMS'] - mu['MMS']) / sigma['MMS']
-        z_ld = (raw_values['LD'] - mu['LD']) / sigma['LD']
-        z_vps = (raw_values['VPS'] - mu['VPS']) / sigma['VPS']
-        z_mpn = (raw_values['MPN'] - mu['MPN']) / sigma['MPN']
-        
-        # Composite formula: JGRI = (zMMS + zLD + zVPS + zMPN) / 4
-        jgri = (z_mms + z_ld + z_vps + z_mpn) / 4
-        jgri_values.append(round(jgri, 3))
-        
+    pos_counts = Counter(node.feature.pos1 for node in tagged_nodes if node.surface and node.feature.pos1); Nouns = pos_counts.get('名詞', 0); Verbs = pos_counts.get('動詞', 0); Adjectives = pos_counts.get('形容詞', 0); Adverbs = pos_counts.get('副詞', 0); Total_Morphemes = len(tagged_nodes); sentences = re.split(r'[。！？\n]', text.strip()); sentences = [s.strip() for s in sentences if s.strip()]; Num_Sentences = len(sentences); 
+    if Total_Morphemes == 0 or Nouns == 0 or Num_Sentences == 0: return {'MMS': 0.0, 'LD': 0.0, 'VPS': 0.0, 'MPN': 0.0}; 
+    MMS = Total_Morphemes / Num_Sentences; LD = (Nouns + Verbs + Adjectives + Adverbs) / Total_Morphemes; VPS = Verbs / Num_Sentences; MPN = (Adjectives + Verbs) / Nouns; return {'MMS': MMS, 'LD': LD, 'VPS': VPS, 'MPN': MPN}
+def calculate_jgri(metrics_df): 
+    jgri_values = []; mu = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].mean(); sigma = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].std(); sigma = sigma.replace(0, 1e-6); 
+    for index, row in metrics_df.iterrows(): raw_values = row[['MMS', 'LD', 'VPS', 'MPN']]; z_mms = (raw_values['MMS'] - mu['MMS']) / sigma['MMS']; z_ld = (raw_values['LD'] - mu['LD']) / sigma['LD']; z_vps = (raw_values['VPS'] - mu['VPS']) / sigma['VPS']; z_mpn = (raw_values['MPN'] - mu['MPN']) / sigma['MPN']; jgri = (z_mms + z_ld + z_vps + z_mpn) / 4; jgri_values.append(round(jgri, 3)); 
     return jgri_values
-
-# ===============================================
-# Other Helper Functions (CORRECTED SYNTAX)
-# ===============================================
-
-def analyze_script_distribution(text):
-    total_chars = len(text)
-    if total_chars == 0:
-        return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}
-    patterns = {
-        "Kanji": r'[\u4E00-\u9FFF]',
-        "Hiragana": r'[\u3040-\u309F]',
-        "Katakana": r'[\u30A0-\u30FF]',
-    }
-    counts = {name: len(re.findall(pattern, text)) for name, pattern in patterns.items()}
-    counted_chars = sum(counts.values())
-    counts["Other"] = total_chars - counted_chars
-    percentages = {name: round((count / total_chars) * 100, 1) for name, count in counts.items()}
+def analyze_script_distribution(text): 
+    total_chars = len(text); if total_chars == 0: return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}; patterns = {"Kanji": r'[\u4E00-\u9FFF]', "Hiragana": r'[\u3040-\u309F]', "Katakana": r'[\u30A0-\u30FF]',}; counts = {name: len(re.findall(pattern, text)) for name, pattern in patterns.items()}; counted_chars = sum(counts.values()); counts["Other"] = total_chars - counted_chars; percentages = {name: round((count / total_chars) * 100, 1) for name, count in counts.items()}; 
     return percentages
-
-def analyze_kanji_density(text):
-    sentences = re.split(r'[。！？\n]', text.strip())
-    sentences = [s.strip() for s in sentences if s.strip()]
-    if not sentences:
-        return 0.0
-    total_kanji = len(re.findall(r'[\u4E00-\u9FFF]', text))
-    num_sentences = len(sentences)
-    density = total_kanji / num_sentences
+def analyze_kanji_density(text): 
+    sentences = re.split(r'[。！？\n]', text.strip()); sentences = [s.strip() for s in sentences if s.strip()]; if not sentences: return 0.0; total_kanji = len(re.findall(r'[\u4E00-\u9FFF]', text)); num_sentences = len(sentences); density = total_kanji / num_sentences; 
     return round(density, 2)
-
-def analyze_jlpt_coverage(tokens, jlpt_dict):
-    unique_tokens_in_text = set(tokens)
-    result = {}
-    total_known_words = set()
-    for level, wordset in jlpt_dict.items():
-        count = sum(1 for w in unique_tokens_in_text if w in wordset)
-        result[level] = count
-        total_known_words.update(w for w in unique_tokens_in_text if w in wordset)
-    na_count = len(unique_tokens_in_text) - len(total_known_words)
-    result["NA"] = na_count
+def analyze_jlpt_coverage(tokens, jlpt_dict): 
+    unique_tokens_in_text = set(tokens); result = {}; total_known_words = set(); 
+    for level, wordset in jlpt_dict.items(): count = sum(1 for w in unique_tokens_in_text if w in wordset); result[level] = count; total_known_words.update(w for w in unique_tokens_in_text if w in wordset); 
+    na_count = len(unique_tokens_in_text) - len(total_known_words); result["NA"] = na_count; 
     return result
-
-def analyze_pos_distribution(tagged_nodes, filename):
-    if not tagged_nodes:
-        return {"Filename": filename}, {"Filename": filename}
-    pos_tags = [
-        node.feature.pos1 
-        for node in tagged_nodes 
-        if node.surface and node.feature.pos1
-    ]
-    if not pos_tags:
-        return {"Filename": filename}, {"Filename": filename}
-    total_tokens = len(pos_tags)
-    pos_counts = Counter(pos_tags)
-    pos_percentages = {"Filename": filename}
-    pos_raw_counts = {"Filename": filename}
-    for tag, count in pos_counts.items():
-        percentage = round((count / total_tokens) * 100, 1)
-        pos_percentages[tag] = percentage
-        pos_raw_counts[tag] = count
+def analyze_pos_distribution(tagged_nodes, filename): 
+    if not tagged_nodes: return {"Filename": filename}, {"Filename": filename}; pos_tags = [node.feature.pos1 for node in tagged_nodes if node.surface and node.feature.pos1]; 
+    if not pos_tags: return {"Filename": filename}, {"Filename": filename}; total_tokens = len(pos_tags); pos_counts = Counter(pos_tags); pos_percentages = {"Filename": filename}; pos_raw_counts = {"Filename": filename}; 
+    for tag, count in pos_counts.items(): percentage = round((count / total_tokens) * 100, 1); pos_percentages[tag] = percentage; pos_raw_counts[tag] = count; 
     return pos_percentages, pos_raw_counts
-
-# ===============================================
-# Plotting Functions (CORRECTED SYNTAX)
-# ===============================================
-
 def plot_jlpt_coverage(df, filename="jlpt_coverage.png"):
-    df_plot = df[['Filename', 'JLPT_N5', 'JLPT_N4', 'JLPT_N3', 'JLPT_N2', 'JLPT_N1', 'NA']].copy()
-    df_plot['Total_Types'] = df_plot.iloc[:, 1:].sum(axis=1)
-    for col in df_plot.columns[1:-1]:
-        df_plot[col] = (df_plot[col] / df_plot['Total_Types']) * 100
-    df_plot = df_plot.set_index('Filename').drop(columns='Total_Types')
-    colors = {'JLPT_N5': '#51A3A3', 'JLPT_N4': '#51C4D4','JLPT_N3': '#FFD000','JLPT_N2': '#FFA500','JLPT_N1': '#FF6347','NA': '#8B0000'}
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df_plot.plot(kind='barh', stacked=True, color=[colors[col] for col in df_plot.columns], ax=ax)
-    ax.set_title("JLPT Vocabulary Coverage (Proportion of Unique Words)", fontsize=14)
-    ax.set_xlabel("Percentage of Unique Words (%)", fontsize=12)
-    ax.set_ylabel("Text File", fontsize=12)
-    ax.legend(title="Vocabulary Level", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
+    df_plot = df[['Filename', 'JLPT_N5', 'JLPT_N4', 'JLPT_N3', 'JLPT_N2', 'JLPT_N1', 'NA']].copy(); df_plot['Total_Types'] = df_plot.iloc[:, 1:].sum(axis=1); 
+    for col in df_plot.columns[1:-1]: df_plot[col] = (df_plot[col] / df_plot['Total_Types']) * 100; df_plot = df_plot.set_index('Filename').drop(columns='Total_Types'); 
+    colors = {'JLPT_N5': '#51A3A3', 'JLPT_N4': '#51C4D4','JLPT_N3': '#FFD000','JLPT_N2': '#FFA500','JLPT_N1': '#FF6347','NA': '#8B0000'}; 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_plot.plot(kind='barh', stacked=True, color=[colors[col] for col in df_plot.columns], ax=ax); 
+    ax.set_title("JLPT Vocabulary Coverage (Proportion of Unique Words)", fontsize=14); ax.set_xlabel("Percentage of Unique Words (%)", fontsize=12); ax.set_ylabel("Text File", fontsize=12); ax.legend(title="Vocabulary Level", bbox_to_anchor=(1.05, 1), loc='upper left'); plt.tight_layout(); 
     plt.savefig(filename); plt.close(fig); return filename
-
 def plot_jgri_comparison(df, filename="jgri_comparison.png"):
-    df_plot = df[['Filename', 'JGRI']].set_index('Filename')
-    colors = ['#1f77b4' if x >= 0 else '#d62728' for x in df_plot['JGRI']]
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df_plot['JGRI'].plot(kind='bar', color=colors, ax=ax)
-    ax.axhline(0, color='gray', linestyle='--')
-    ax.set_title("JGRI Comparison (Relative Grammatical Complexity)", fontsize=14)
-    ax.set_xlabel("Text File", fontsize=12)
-    ax.set_ylabel("JGRI Score (Z-Score Average)", fontsize=12)
-    ax.tick_params(axis='x', rotation=45)
-    plt.tight_layout()
-    plt.savefig(filename); plt.close(fig); return filename
-
+    df_plot = df[['Filename', 'JGRI']].set_index('Filename'); colors = ['#1f77b4' if x >= 0 else '#d62728' for x in df_plot['JGRI']]; 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_plot['JGRI'].plot(kind='bar', color=colors, ax=ax); ax.axhline(0, color='gray', linestyle='--'); 
+    ax.set_title("JGRI Comparison (Relative Grammatical Complexity)", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("JGRI Score (Z-Score Average)", fontsize=12); ax.tick_params(axis='x', rotation=45); 
+    plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
 def plot_scripts_distribution(df, filename="scripts_distribution.png"):
-    df_scripts = pd.DataFrame()
-    for index, row in df.iterrows():
-        parts = row['Script_Distribution'].split(' | ')
-        data = {p.split(': ')[0].strip(): float(p.split(': ')[1].replace('%', '').strip()) for p in parts}
-        df_scripts = pd.concat([df_scripts, pd.DataFrame([data], index=[row['Filename']])])
-    script_cols = ['K', 'H', 'T', 'O']
-    df_scripts = df_scripts[script_cols].fillna(0)
-    colors = {'K': '#483D8B', 'H': '#8A2BE2', 'T': '#DA70D6', 'O': '#A9A9A9'}
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df_scripts.plot(kind='barh', stacked=True, color=[colors[col] for col in df_scripts.columns], ax=ax)
-    ax.set_title("Script Distribution (Percentage of Characters)", fontsize=14)
-    ax.set_xlabel("Percentage (%)", fontsize=12)
-    ax.set_ylabel("Text File", fontsize=12)
-    ax.legend(['Kanji', 'Hiragana', 'Katakana', 'Other'], title="Script Type", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
+    df_scripts = pd.DataFrame(); 
+    for index, row in df.iterrows(): parts = row['Script_Distribution'].split(' | '); data = {p.split(': ')[0].strip(): float(p.split(': ')[1].replace('%', '').strip()) for p in parts}; df_scripts = pd.concat([df_scripts, pd.DataFrame([data], index=[row['Filename']])]); 
+    script_cols = ['K', 'H', 'T', 'O']; df_scripts = df_scripts[script_cols].fillna(0); 
+    colors = {'K': '#483D8B', 'H': '#8A2BE2', 'T': '#DA70D6', 'O': '#A9A9A9'}; 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_scripts.plot(kind='barh', stacked=True, color=[colors[col] for col in df_scripts.columns], ax=ax); 
+    ax.set_title("Script Distribution (Percentage of Characters)", fontsize=14); ax.set_xlabel("Percentage (%)", fontsize=12); ax.set_ylabel("Text File", fontsize=12); ax.legend(['Kanji', 'Hiragana', 'Katakana', 'Other'], title="Script Type", bbox_to_anchor=(1.05, 1), loc='upper left'); plt.tight_layout(); 
     plt.savefig(filename); plt.close(fig); return filename
-
 def plot_mtld_comparison(df, filename="mtld_comparison.png"):
-    df_plot = df[['Filename', 'MTLD']].set_index('Filename')
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df_plot['MTLD'].plot(kind='bar', color='#3CB371', ax=ax)
-    ax.set_title("MTLD Comparison (Lexical Diversity)", fontsize=14)
-    ax.set_xlabel("Text File", fontsize=12)
-    ax.set_ylabel("MTLD Score", fontsize=12)
-    ax.tick_params(axis='x', rotation=45)
-    plt.tight_layout()
-    plt.savefig(filename); plt.close(fig); return filename
-
+    df_plot = df[['Filename', 'MTLD']].set_index('Filename'); fig, ax = plt.subplots(figsize=(10, 6)); 
+    df_plot['MTLD'].plot(kind='bar', color='#3CB371', ax=ax); 
+    ax.set_title("MTLD Comparison (Lexical Diversity)", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("MTLD Score", fontsize=12); ax.tick_params(axis='x', rotation=45); 
+    plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
 def plot_token_count_comparison(df, filename="token_count_comparison.png"):
-    df_plot = df[['Filename', 'Tokens']].set_index('Filename')
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df_plot['Tokens'].plot(kind='bar', color='#6A5ACD', ax=ax)
-    ax.set_title("Total Token Count Comparison", fontsize=14)
-    ax.set_xlabel("Text File", fontsize=12)
-    ax.set_ylabel("Total Tokens (Words)", fontsize=12)
-    ax.tick_params(axis='x', rotation=45)
-    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ','))
-    ax.yaxis.set_major_formatter(formatter)
-    plt.tight_layout()
-    plt.savefig(filename); plt.close(fig); return filename
-
+    df_plot = df[['Filename', 'Tokens']].set_index('Filename'); fig, ax = plt.subplots(figsize=(10, 6)); 
+    df_plot['Tokens'].plot(kind='bar', color='#6A5ACD', ax=ax); 
+    ax.set_title("Total Token Count Comparison", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("Total Tokens (Words)", fontsize=12); ax.tick_params(axis='x', rotation=45); 
+    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ',')); ax.yaxis.set_major_formatter(formatter); plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
 def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_curve.png"):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    is_data_plotted = False
+    fig, ax = plt.subplots(figsize=(10, 6)); is_data_plotted = False; 
     for data in corpus_data: 
-        tokens = data['Tokens']; filename_label = data['Filename']
-        if not tokens or len(tokens) < window_size: continue
-        ttr_values = []
-        for i in range(len(tokens) - window_size + 1): 
-            window = tokens[i:i + window_size]; ttr = len(set(window)) / window_size
-            ttr_values.append(ttr)
-        x_axis = np.arange(window_size, len(tokens) + 1)
-        ax.plot(x_axis, ttr_values, label=filename_label)
-        is_data_plotted = True
+        tokens = data['Tokens']; filename_label = data['Filename']; 
+        if not tokens or len(tokens) < window_size: continue; 
+        ttr_values = []; 
+        for i in range(len(tokens) - window_size + 1): window = tokens[i:i + window_size]; ttr = len(set(window)) / window_size; ttr_values.append(ttr); 
+        x_axis = np.arange(window_size, len(tokens) + 1); ax.plot(x_axis, ttr_values, label=filename_label); is_data_plotted = True; 
     if not is_data_plotted: 
-        ax.text(0.5, 0.5, f"No texts long enough for window size {window_size}.", transform=ax.transAxes, ha='center', color='red')
-    ax.set_title(f"Rolling Mean TTR Curve (Window Size: {window_size})", fontsize=14)
-    ax.set_xlabel("Tokens (Total Words)", fontsize=12)
-    ax.set_ylabel("Rolling TTR (0 to 1)", fontsize=12)
-    ax.legend(title="Text File", loc='upper right')
-    ax.set_ylim(0, 1)
-    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ','))
-    ax.xaxis.set_major_formatter(formatter)
-    plt.tight_layout()
-    plt.savefig(filename); plt.close(fig); return filename
-
+        ax.text(0.5, 0.5, f"No texts long enough for window size {window_size}.", transform=ax.transAxes, ha='center', color='red'); 
+    ax.set_title(f"Rolling Mean TTR Curve (Window Size: {window_size})", fontsize=14); ax.set_xlabel("Tokens (Total Words)", fontsize=12); ax.set_ylabel("Rolling TTR (0 to 1)", fontsize=12); ax.legend(title="Text File", loc='upper right'); ax.set_ylim(0, 1); 
+    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ',')); ax.xaxis.set_major_formatter(formatter); plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
 def plot_ttr_comparison(df, filename="ttr_comparison.png"):
-    df_plot = df[['Filename', 'TTR']].set_index('Filename')
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df_plot['TTR'].plot(kind='bar', color='#FF8C00', ax=ax)
-    ax.set_title("Type-Token Ratio (TTR) Comparison", fontsize=14)
-    ax.set_xlabel("Text File", fontsize=12)
-    ax.set_ylabel("TTR Score (0-1)", fontsize=12)
-    ax.tick_params(axis='x', rotation=45)
-    ax.set_ylim(0, df_plot['TTR'].max() * 1.1)
-    plt.tight_layout()
+    df_plot = df[['Filename', 'TTR']].set_index('Filename'); fig, ax = plt.subplots(figsize=(10, 6)); 
+    df_plot['TTR'].plot(kind='bar', color='#FF8C00', ax=ax); 
+    ax.set_title("Type-Token Ratio (TTR) Comparison", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("TTR Score (0-1)", fontsize=12); ax.tick_params(axis='x', rotation=45); ax.set_ylim(0, df_plot['TTR'].max() * 1.1); 
+    plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
+def plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png"):
+    df_plot = df_pos_percentage.set_index('Filename').copy(); all_tags = df_plot.columns.tolist(); total_tag_percentage = df_plot.mean().sort_values(ascending=False); 
+    top_tags = total_tag_percentage.head(10).index.tolist(); df_plot_top = df_plot[top_tags]; cmap = plt.cm.get_cmap('tab20', len(top_tags)); 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_plot_top.plot(kind='barh', stacked=True, colormap=cmap, ax=ax); 
+    ax.set_title("Normalized Part-of-Speech Distribution (Top 10 Categories)", fontsize=14); ax.set_xlabel("Percentage (%)", fontsize=12); ax.set_ylabel("Text File", fontsize=12); ax.legend(title="POS Category", bbox_to_anchor=(1.05, 1), loc='upper left'); plt.tight_layout(); 
     plt.savefig(filename); plt.close(fig); return filename
 
-def plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png"):
-    df_plot = df_pos_percentage.set_index('Filename').copy()
-    all_tags = df_plot.columns.tolist()
-    total_tag_percentage = df_plot.mean().sort_values(ascending=False)
-    top_tags = total_tag_percentage.head(10).index.tolist()
-    df_plot_top = df_plot[top_tags]
-    cmap = plt.cm.get_cmap('tab20', len(top_tags))
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df_plot_top.plot(kind='barh', stacked=True, colormap=cmap, ax=ax)
-    ax.set_title("Normalized Part-of-Speech Distribution (Top 10 Categories)", fontsize=14)
-    ax.set_xlabel("Percentage (%)", fontsize=12)
-    ax.set_ylabel("Text File", fontsize=12)
-    ax.legend(title="POS Category", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
-    plt.savefig(filename); plt.close(fig); return filename
 
 # ===============================================
 # Sidebar & Initialization
 # ===============================================
 
 # Load essential components
-jlpt_dict_to_use = load_jlpt_wordlist()
-tagger = initialize_tokenizer()
+jlpt_dict_to_use = load_jlpt_wordlist(T)
+tagger = initialize_tokenizer(T)
 
 if jlpt_dict_to_use is None or tagger is None:
     st.stop() 
 
-# --- Sidebar Configuration: DOC LINK AT TOP ---
+# --- Sidebar Configuration: DOC LINK AT TOP (Dynamic) ---
 st.sidebar.markdown(
-    "**Documentation:** [User Guide and Results Interpretation](https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing)"
+    f"**Documentation:** [{T['MANUAL_TEXT']}]({T['MANUAL_LINK']})"
 )
 st.sidebar.markdown("---")
 
-st.sidebar.header("1. Upload Raw Text Files")
+st.sidebar.header(T['UPLOAD_HEADER'])
 
 input_files = st.sidebar.file_uploader(
-    "Upload one or more **.txt** files for analysis.",
+    T['UPLOAD_BUTTON'],
     type=["txt"],
     accept_multiple_files=True,
     key="input_uploader",
-    help="The files will be analyzed against the single pre-loaded JLPT word list."
+    help=T['UPLOAD_HELPER']
 )
 
-st.sidebar.header("2. Word List Used")
-st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LEVELS)} levels).")
+st.sidebar.header(T['WORDLIST_HEADER'])
+st.sidebar.info(f"{T['WORDLIST_INFO']} ({len(ALL_JLPT_LEVELS)} levels).")
 
 # ===============================================
 # Main Area: Process and Display
@@ -559,10 +590,10 @@ if input_files:
     
     # --- PASS 1 & 2: Data Processing ---
     
-    st.header("2. Analysis Results")
-    st.markdown("Coverage columns report the count of **unique words** from the text found in that category.")
+    st.header(T['ANALYSIS_HEADER'])
+    st.markdown(T['COVERAGE_NOTE'])
     
-    progress_bar = st.progress(0, text="--- PASS 1: Analyzing components and raw metrics ---")
+    progress_bar = st.progress(0, text=T['PASS1_TEXT'])
     
     # --- START OF FILE PROCESSING LOOP (Verified) ---
     for i, uploaded_file in enumerate(input_files):
@@ -571,17 +602,16 @@ if input_files:
         try:
              text = content_bytes.decode('utf-8')
         except UnicodeDecodeError:
-             st.error(f"Failed to decode {filename}. Ensure it is UTF-8 encoded.")
+             st.error(f"{T['DECODE_ERROR']} {filename}. Ensure it is UTF-8 encoded.")
              progress_bar.progress((i + 1) / len(input_files))
              continue
              
         text = text.strip()
         if not text:
-            st.warning(f"File {filename} is empty, skipped.")
+            st.warning(f"File {filename} {T['EMPTY_FILE']}")
             progress_bar.progress((i + 1) / len(input_files))
             continue
         
-        # This block was the source of the error location. It is verified and correct.
         tagged_nodes = list(tagger(text))
         jgri_raw_components = analyze_jgri_components(text, tagged_nodes)
         
@@ -596,10 +626,10 @@ if input_files:
     # --- END OF FILE PROCESSING LOOP ---
 
     if not corpus_data:
-        progress_bar.empty(); st.error("No valid text files were processed."); st.stop()
+        progress_bar.empty(); st.error(T['NO_FILES']); st.stop()
 
     df_raw_metrics = pd.DataFrame(corpus_data)
-    progress_bar.progress(0, text="--- PASS 2: Calculating JGRI and final results ---")
+    progress_bar.progress(0, text=T['PASS2_TEXT'])
     jgri_values = calculate_jgri(df_raw_metrics)
     
     # Collect ALL unique POS tags for dynamic sidebar filtering
@@ -630,7 +660,7 @@ if input_files:
         pos_count_results.append(pos_counts)
         progress_bar.progress((i + 1) / len(corpus_data), text=f"PASS 2: Completed analysis for {data['Filename']}.")
 
-    progress_bar.empty(); st.success("Analysis complete!")
+    progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
     df_results = pd.DataFrame(results)
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
 
@@ -638,26 +668,19 @@ if input_files:
     # --- 3. N-gram Analysis Section ---
     # ===============================================
     
-    st.header("3. N-gram Frequency Analysis & Concordance")
+    st.header(T['NGRAM_MAIN_HEADER'])
 
     # --- Sidebar N-gram Control ---
-    st.sidebar.header("3. N-gram Settings")
+    st.sidebar.header(T['NGRAM_HEADER'])
     n_gram_size = st.sidebar.radio(
-        "Select N-gram Length (N)",
+        T['NGRAM_RADIO'],
         options=[1, 2, 3, 4, 5],
         index=0,
         key='n_gram_size_radio'
     )
     
-    # --- Sidebar KWIC Context Control ---
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Concordance Context")
-    col_l, col_r = st.sidebar.columns(2)
-    left_context_size = col_l.number_input("Words to Left", min_value=1, max_value=20, value=7, key='left_context_size')
-    right_context_size = col_r.number_input("Words to Right", min_value=1, max_value=20, value=7, key='right_context_size')
-    
-    st.markdown(f"**Current N-gram length selected: {n_gram_size}-gram**")
-    st.info("Use the `*` symbol in the word filter boxes below to represent zero or more characters (e.g., `*ing` or `本*`).")
+    st.markdown(f"{T['NGRAM_CURRENT']} {n_gram_size}-gram**")
+    st.info(T['NGRAM_WILDCARD_INFO'])
     
     # 1. Generate ALL N-grams across the corpus
     all_n_grams_df = pd.DataFrame(columns=['N_gram', 'POS_Sequence'])
@@ -670,7 +693,7 @@ if input_files:
     df_n_gram_freq = calculate_n_gram_frequency(all_n_grams_df)
 
     # 2. Dynamic Filter UI
-    st.markdown("##### Filter N-grams by Word (with Wildcards) or Part-of-Speech (POS)")
+    st.markdown(f"##### {T['NGRAM_FILTER_HEADER']}")
     filter_cols = st.columns(n_gram_size)
     
     current_filters = {}
@@ -680,9 +703,9 @@ if input_files:
         with filter_cols[i]:
             # Word filter
             current_filters[f'word_{i}'] = st.text_input(
-                label=f"Word {i+1}", 
+                label=f"{T['KWIC_HELP_KW']} {i+1}", 
                 key=f'word_filter_{i}', 
-                placeholder=f"Filter word {i+1}"
+                placeholder=f"{T['KWIC_HELP_KW']} {i+1}"
             )
             # POS filter (Dropdown)
             current_filters[f'pos_{i}'] = st.selectbox(
@@ -696,17 +719,17 @@ if input_files:
     
     # 4. Display Frequency Results
     st.markdown("---")
-    st.markdown("#### N-gram Frequency List")
-    st.markdown(f"**Total unique {n_gram_size}-grams matching filter: {len(df_filtered_n_grams):,}**")
+    st.markdown(f"#### {T['NGRAM_FREQ_HEADER']}")
+    st.markdown(f"{T['NGRAM_TOTAL_UNIQUE']} {n_gram_size}-gram{T['NGRAM_MATCHING_FILTER']} {len(df_filtered_n_grams):,}")
     
     st.dataframe(
         df_filtered_n_grams[['N_gram', 'Frequency', 'Percentage']].head(50), 
         use_container_width=True,
         height=300,
         column_config={
-            "N_gram": st.column_config.Column(f"{n_gram_size}-gram", help="Sequence of words/morphemes."),
-            "Frequency": st.column_config.NumberColumn("Frequency", help="Total count of this specific N-gram."),
-            "Percentage": st.column_config.TextColumn("Percentage", help="Frequency relative to the total number of filtered N-grams."),
+            "N_gram": st.column_config.Column(f"{n_gram_size}-gram", help=f"{T['KWIC_HELP_KW']} {n_gram_size}-gram"),
+            "Frequency": st.column_config.NumberColumn(f"{T['NGRAM_RADIO']}", help=f"{T['NGRAM_RADIO']}"), # Simplified help text
+            "Percentage": st.column_config.TextColumn(f"{T['POS_HEADER']}", help=f"{T['POS_HEADER']}"), # Simplified help text
         }
     )
     
@@ -714,7 +737,7 @@ if input_files:
     if not df_filtered_n_grams.empty:
         csv_n_grams = df_filtered_n_grams.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label=f"⬇️ Download Full Filtered {n_gram_size}-gram List ({len(df_filtered_n_grams):,} unique items)",
+            label=T['DOWNLOAD_NGRAM'].format(n=n_gram_size, count=len(df_filtered_n_grams)),
             data=csv_n_grams,
             file_name=f"{n_gram_size}_gram_frequency_full.csv",
             mime="text/csv"
@@ -722,13 +745,15 @@ if input_files:
     
     st.markdown("---")
 
+    # --- Sidebar KWIC Context Control (Already Done Above) ---
+
     # 5. Generate and Display Concordance
-    st.markdown("#### Concordance (Keyword In Context - KWIC)")
+    st.markdown(f"#### {T['CONCORDANCE_HEADER']}")
     
     # Pass all filters and context sizes to generate the KWIC list
     df_concordance = generate_concordance(corpus_data, current_filters, n_gram_size, left_context_size, right_context_size)
 
-    st.markdown(f"**Total concordance lines generated: {len(df_concordance):,}** (based on N-gram filters)")
+    st.markdown(f"{T['CONCORDANCE_LINES']} {len(df_concordance):,} (based on N-gram filters)")
 
     # Display KWIC Table
     st.dataframe(
@@ -737,9 +762,9 @@ if input_files:
         height=400,
         column_config={
             "Filename": st.column_config.Column("File", width="small"),
-            "Left Context": st.column_config.TextColumn("Left Context", help=f"{left_context_size} words to the left", width="large"),
-            "Keyword(s)": st.column_config.TextColumn("Keyword(s)", help=f"The filtered {n_gram_size}-gram", width="large"),
-            "Right Context": st.column_config.TextColumn("Right Context", help=f"{right_context_size} words to the right", width="large"),
+            "Left Context": st.column_config.TextColumn(f"{T['KWIC_LEFT']} ({left_context_size})", help=f"{left_context_size} {T['KWIC_HELP_LEFT']}", width="large"),
+            "Keyword(s)": st.column_config.TextColumn("Keyword(s)", help=f"{T['KWIC_HELP_KW']} {n_gram_size}-gram", width="large"),
+            "Right Context": st.column_config.TextColumn(f"{T['KWIC_RIGHT']} ({right_context_size})", help=f"{right_context_size} {T['KWIC_HELP_RIGHT']}", width="large"),
         }
     )
     
@@ -747,7 +772,7 @@ if input_files:
     if not df_concordance.empty:
         csv_concordance = df_concordance.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label=f"⬇️ Download Full Concordance List ({len(df_concordance):,} lines)",
+            label=T['DOWNLOAD_KWIC'].format(count=len(df_concordance)),
             data=csv_concordance,
             file_name="concordance_list_full.csv",
             mime="text/csv"
@@ -759,21 +784,20 @@ if input_files:
     # --- 4. Visualizations ---
     # ===============================================
 
-    st.subheader("4. Visualizations")
+    st.subheader(T['VISUAL_HEADER'])
     
     if len(df_results) >= 1:
         
         # --- Row 1: JLPT and Scripts ---
         col1, col2 = st.columns(2)
         
-        # NOTE: Using placeholder functions for plotting logic since they are unchanged from the last step.
         with col1:
-            jlpt_plot_file = "jlpt_coverage.png" # Placeholder
+            jlpt_plot_file = "jlpt_coverage.png"
             plot_jlpt_coverage(df_results, filename=jlpt_plot_file)
             st.image(jlpt_plot_file, caption="JLPT Vocabulary Coverage (Proportion of Unique Words)")
             
         with col2:
-            scripts_plot_file = "scripts_distribution.png" # Placeholder
+            scripts_plot_file = "scripts_distribution.png"
             plot_scripts_distribution(df_results, filename=scripts_plot_file)
             st.image(scripts_plot_file, caption="Scripts Distribution (Kanji, Hiragana, Katakana, Other)")
             
@@ -784,19 +808,19 @@ if input_files:
 
         with col3:
             if len(df_results) > 1:
-                jgri_plot_file = "jgri_comparison.png" # Placeholder
+                jgri_plot_file = "jgri_comparison.png"
                 plot_jgri_comparison(df_results, filename=jgri_plot_file)
                 st.image(jgri_plot_file, caption="JGRI Comparison (Relative Grammatical Complexity)")
             else:
-                st.info("JGRI comparison requires at least two files.")
+                st.info(T['JGRI_COMPARE_NOTE'])
 
         with col4:
-            mtld_plot_file = "mtld_comparison.png" # Placeholder
+            mtld_plot_file = "mtld_comparison.png"
             plot_mtld_comparison(df_results, filename=mtld_plot_file)
             st.image(mtld_plot_file, caption="MTLD Comparison (Lexical Diversity Score)")
 
         with col5:
-            ttr_plot_file = "ttr_comparison.png" # Placeholder
+            ttr_plot_file = "ttr_comparison.png"
             plot_ttr_comparison(df_results, filename=ttr_plot_file)
             st.image(ttr_plot_file, caption="Type-Token Ratio (TTR) Comparison")
             
@@ -806,21 +830,21 @@ if input_files:
         col6, col7 = st.columns(2)
 
         with col6:
-            pos_plot_file = "pos_comparison.png" # Placeholder
+            pos_plot_file = "pos_comparison.png"
             plot_pos_comparison(df_pos_percentage, filename=pos_plot_file)
             st.image(pos_plot_file, caption="Normalized POS Distribution (Top 10 Categories)")
             
         with col7:
-            token_count_plot_file = "token_count_comparison.png" # Placeholder
+            token_count_plot_file = "token_count_comparison.png"
             plot_token_count_comparison(df_results, filename=token_count_plot_file)
             st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
         
         st.markdown("---")
 
         # --- Row 4: Rolling TTR Curve (Now hidden in an Expander) ---
-        with st.expander("Show Rolling Mean TTR Curve (Vocabulary Trend)"):
-            st.markdown("This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.")
-            rolling_ttr_plot_file = "rolling_ttr_curve.png" # Placeholder
+        with st.expander(T['ROLLING_TTR_EXPANDER']):
+            st.markdown(T['ROLLING_TTR_NOTE'])
+            rolling_ttr_plot_file = "rolling_ttr_curve.png"
             plot_rolling_ttr_curve(corpus_data, filename=rolling_ttr_plot_file)
             st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
         
@@ -830,9 +854,11 @@ if input_files:
     # ===============================================
     # --- 5. Summary Tables ---
     # ===============================================
-    st.subheader("5. Summary Table (Lexical, Structural & Readability Metrics)")
+    st.subheader(T['SUMMARY_HEADER'])
     
-    # --- Define Column Configuration for Tooltips and Formatting ---
+    # --- Dynamic Column Configuration for Tooltips and Formatting ---
+    
+    # Note: st.column_config names must be literal strings, but the help text can use T
     column_configuration = {
         "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
         "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
@@ -855,8 +881,9 @@ if input_files:
         "NA": st.column_config.NumberColumn("NA", help="Count of unique words NOT covered by N5-N1 lists.", width="small"),
     }
     
+    # JGRI Explanation Text is too long to put in T, keeping structure as-is
+    st.markdown(f"### {T['JGRI_EXP_HEADER']}")
     st.markdown("""
-        ### JGRI (Japanese Grammatical Readability Index) Explanation
         The JGRI is a composite, corpus-relative index estimating the grammatical and morphosyntactic complexity of the text. **Higher values indicate greater structural complexity.**
         
         **1. Components (What it measures):**
@@ -899,18 +926,18 @@ if input_files:
     st.dataframe(df_results, column_config=column_configuration, use_container_width=True)
 
     # --- 2C. DETAILED POS DISTRIBUTION TABLE ---
-    st.subheader("6. Detailed Part-of-Speech (POS) Distribution")
-    st.markdown("This table shows the percentage of **all** detected grammatical categories for each file.")
+    st.subheader(T['POS_HEADER'])
+    st.markdown(T['POS_NOTE'])
     
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
     df_pos_percentage = df_pos_percentage.set_index('Filename').fillna(0).T 
-    df_pos_percentage.columns.name = "POS Distribution (%)"
+    df_pos_percentage.columns.name = f"POS Distribution ({T['POS_HEADER']})"
 
     st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
     
     # --- 2D. RAW JGRI COMPONENTS TABLE (Keeping for debug/full data in Excel) ---
-    with st.expander("Show Raw JGRI Components (Original Data for MMS, LD, VPS, MPN)"):
-        st.markdown("This table provides the original raw values used to calculate the JGRI index. These values are also in the main table.")
+    with st.expander(T['RAW_JGRI_EXPANDER']):
+        st.markdown(T['RAW_JGRI_NOTE'])
         df_raw_metrics.index.name = "Index" # Set index name for display
         st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
 
@@ -935,12 +962,12 @@ if input_files:
             df_n_gram_freq.to_excel(writer, index=False, sheet_name=f'{n_gram_size}_gram_Frequency')
         
     st.download_button(
-        label="⬇️ Download All Results as Excel (Includes N-gram Data)",
+        label=T['DOWNLOAD_ALL'],
         data=output.getvalue(),
         file_name="lexical_profile_results_full.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
 else:
-    st.header("Upload Files to Begin")
-    st.info("Please upload your Japanese text files (.txt) using the **sidebar**.")
+    st.header(T['UPLOAD_HEADER'])
+    st.info(T['UPLD_TO_BEGIN'])
