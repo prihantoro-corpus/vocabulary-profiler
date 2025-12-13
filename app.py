@@ -302,12 +302,11 @@ def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_cu
     """
     fig, ax = plt.subplots(figsize=(10, 6))
 
+    is_data_plotted = False
     for data in corpus_data:
         tokens = data['Tokens']
         filename_label = data['Filename']
         if not tokens or len(tokens) < window_size:
-            ax.text(0.5, 0.5, f"'{filename_label}' too short for window size {window_size}", 
-                    transform=ax.transAxes, ha='center', color='red')
             continue
             
         ttr_values = []
@@ -322,6 +321,11 @@ def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_cu
         x_axis = np.arange(window_size, len(tokens) + 1)
         
         ax.plot(x_axis, ttr_values, label=filename_label)
+        is_data_plotted = True
+        
+    if not is_data_plotted:
+        ax.text(0.5, 0.5, f"No texts long enough for window size {window_size}.", 
+                transform=ax.transAxes, ha='center', color='red')
         
     ax.set_title(f"Rolling Mean TTR Curve (Window Size: {window_size})", fontsize=14)
     ax.set_xlabel("Tokens (Total Words)", fontsize=12)
@@ -378,7 +382,6 @@ def plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png"):
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Plot normalized stacked bar chart (implicitly 100% since data is percentage)
     df_plot_top.plot(kind='barh', stacked=True, colormap=cmap, ax=ax)
     
     # Formatting
@@ -652,11 +655,11 @@ if input_files:
         
         st.markdown("---")
 
-        # --- Row 4: Rolling TTR Curve ---
-        st.subheader("Rolling Mean TTR Curve")
-        st.markdown("This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.")
-        rolling_ttr_plot_file = plot_rolling_ttr_curve(corpus_data, filename="rolling_ttr_curve.png")
-        st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
+        # --- Row 4: Rolling TTR Curve (Now hidden in an Expander) ---
+        with st.expander("Show Rolling Mean TTR Curve (Vocabulary Trend)"):
+            st.markdown("This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.")
+            rolling_ttr_plot_file = plot_rolling_ttr_curve(corpus_data, filename="rolling_ttr_curve.png")
+            st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
         
         st.markdown("---")
 
