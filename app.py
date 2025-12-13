@@ -4,7 +4,7 @@ import io
 import os
 import re
 from collections import Counter
-import numpy as np # <-- NEW IMPORT
+import numpy as np
 
 # --- Configuration ---
 JLPT_FILE_MAP = {
@@ -46,7 +46,7 @@ st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word 
 
 @st.cache_data(show_spinner="Loading JLPT Wordlists from CSVs...")
 def load_jlpt_wordlist():
-    # ... (function body remains identical to previous version) ...
+    # ... (identical to previous version) ...
     jlpt_dict = {}
     for level_name, filename in JLPT_FILE_MAP.items():
         if not os.path.exists(filename):
@@ -68,7 +68,7 @@ def load_jlpt_wordlist():
 
 @st.cache_resource(show_spinner="Initializing Fugashi Tokenizer...")
 def initialize_tokenizer():
-    # ... (function body remains identical to previous version) ...
+    # ... (identical to previous version) ...
     try:
         tagger = Tagger()
         st.success("Fugashi tokenizer loaded successfully!")
@@ -80,7 +80,7 @@ def initialize_tokenizer():
         return None
 
 # ===============================================
-# Helper: JGRI Component Analysis (NEW)
+# Helper: JGRI Component Analysis
 # ===============================================
 
 def analyze_jgri_components(text, tagged_nodes):
@@ -148,10 +148,9 @@ def calculate_jgri(metrics_df):
     return jgri_values
 
 # ===============================================
-# Other Helper Functions (Remain the same)
+# Other Helper Functions
 # ===============================================
 def analyze_script_distribution(text):
-    # ... (identical to previous version) ...
     total_chars = len(text)
     if total_chars == 0:
         return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}
@@ -167,7 +166,6 @@ def analyze_script_distribution(text):
     return percentages
 
 def analyze_kanji_density(text):
-    # ... (identical to previous version) ...
     sentences = re.split(r'[。！？\n]', text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
     if not sentences:
@@ -178,7 +176,6 @@ def analyze_kanji_density(text):
     return round(density, 2)
 
 def analyze_jlpt_coverage(tokens, jlpt_dict):
-    # ... (identical to previous version) ...
     unique_tokens_in_text = set(tokens)
     result = {}
     total_known_words = set()
@@ -191,7 +188,6 @@ def analyze_jlpt_coverage(tokens, jlpt_dict):
     return result
 
 def analyze_pos_distribution(tagged_nodes, filename):
-    # ... (identical to previous version) ...
     if not tagged_nodes:
         return {"Filename": filename}, {"Filename": filename}
     pos_tags = [
@@ -240,7 +236,7 @@ st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LE
 # Main Area: Process and Display
 # ===============================================
 
-results_raw = [] # Stores all raw data, including JGRI components
+results_raw = []
 results = []
 pos_percentage_results = []
 pos_count_results = []
@@ -279,7 +275,7 @@ if input_files:
         # 3. Store raw data for Pass 2 (Normalization)
         corpus_data.append({
             'Filename': filename,
-            'Text': text, # Keep text for re-analysis in Pass 2
+            'Text': text,
             'Tagged_Nodes': tagged_nodes,
             'Tokens': [word.surface for word in tagged_nodes],
             **jgri_raw_components
@@ -287,19 +283,16 @@ if input_files:
         
         progress_bar.progress((i + 1) / len(input_files), text=f"PASS 1: Analyzed {i+1} of {len(input_files)} files.")
 
-    # Stop if no files were processed successfully
     if not corpus_data:
         progress_bar.empty()
         st.error("No valid text files were processed.")
         st.stop()
 
-    # Create raw metrics DataFrame for normalization
     df_raw_metrics = pd.DataFrame(corpus_data)
     
     # --- PASS 2: Calculate JGRI and final results ---
     progress_bar.progress(0, text="--- PASS 2: Calculating JGRI and final results ---")
     
-    # Calculate JGRI (Normalization step)
     jgri_values = calculate_jgri(df_raw_metrics)
     
     for i, data in enumerate(corpus_data):
@@ -324,19 +317,15 @@ if input_files:
         # --- Compile Final Summary Result ---
         result = {
             "Filename": data['Filename'],
-            # Readability Index
-            "JGRI": jgri_values[i], # <-- NEW
-            # Structural/Grammatical Metrics
+            "JGRI": jgri_values[i],
             "Kanji_Density": kanji_density,
             "Script_Distribution": f"K: {script_distribution['Kanji']}% | H: {script_distribution['Hiragana']}% | T: {script_distribution['Katakana']}% | O: {script_distribution['Other']}%",
-            # Lexical Metrics
             "Tokens": total_tokens,
             "Types": unique_tokens,
             "TTR": ttr,
             "HDD": hdd_value,
             "MTLD": mtld_value,
         }
-        # Add N5-N1 and NA distribution
         for level in ALL_OUTPUT_LEVELS:
             result[level.replace(" ", "_")] = jlpt_counts.get(level, 0)
 
@@ -359,7 +348,7 @@ if input_files:
     
     # Manually define column names for clarity/tooltips 
     display_names = {
-        "JGRI": "JGRI ❓", # <-- NEW
+        "JGRI": "JGRI ❓",
         "Kanji_Density": "Kanji Density ❓",
         "Script_Distribution": "Script Distribution ❓",
         "Tokens": "Tokens ❓",
@@ -376,8 +365,40 @@ if input_files:
     }
     
     st.markdown("""
-        **Column Explanations (Hover over the '❓' below):**
-        * **JGRI (Japanese Grammatical Readability Index):** A composite, corpus-relative index combining Mean Morphemes per Sentence, Lexical Density, Verbs per Sentence, and Modifiers per Noun. **Higher values indicate greater morphosyntactic complexity.**
+        ### JGRI (Japanese Grammatical Readability Index) Explanation
+        The JGRI is a composite, corpus-relative index estimating the grammatical and morphosyntactic complexity of the text. **Higher values indicate greater structural complexity.**
+        
+        **1. Components (What it measures):**
+        * **Mean Morphemes per Sentence (MMS):** Proxy for sentence length and integration cost.
+        * **Lexical Density (LD):** Ratio of content words (Nouns, Verbs, Adjectives, Adverbs) to total morphemes (information load).
+        * **Verbs per Sentence (VPS):** Captures clause load, subordination, and sentence chaining.
+        * **Modifiers per Noun (MPN):** Estimates Noun Phrase complexity (approximated by the ratio of Adjectives + Verbs to Nouns).
+
+        **2. Computation (How it's calculated):**
+        1.  The raw value of each component (MMS, LD, VPS, MPN) is calculated for every text.
+        2.  Each raw component is **z-score normalised** across the *entire uploaded corpus* using the formula $z = \frac{x - \mu}{\sigma}$.
+        3.  The final JGRI score is the **average** of the four z-scores: $\mathbf{JGRI} = \frac{z_{MMS} + z_{LD} + z_{VPS} + z_{MPN}}{4}$.
+        
+        **3. Interpretation Thresholds (What the score means):**
+    """)
+    
+    # Display Interpretation Table using st.dataframe for clean rendering
+    interpretation_data = {
+        "JGRI Value": ["< -1.0", "-1.0 to 0", "0 to +1.0", "> +1.0"],
+        "Interpretation": [
+            "Very easy / Conversational", 
+            "Relatively easy", 
+            "Moderately complex", 
+            "High grammatical complexity"
+        ]
+    }
+    df_interpretation = pd.DataFrame(interpretation_data)
+    st.dataframe(df_interpretation.set_index('JGRI Value'), use_container_width=True)
+    
+    st.markdown("---")
+    
+    st.markdown("""
+        **Other Column Explanations:**
         * **Kanji Density:** Average Kanji characters per sentence.
         * **Script Distribution:** Percentage breakdown (K=Kanji, H=Hiragana, T=Katakana, O=Other).
         * **Tokens/Types:** Total words / Unique words.
@@ -404,7 +425,7 @@ if input_files:
 
     st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
     
-    # --- 2C. RAW JGRI COMPONENTS TABLE (OPTIONAL but useful for debugging) ---
+    # --- 2C. RAW JGRI COMPONENTS TABLE ---
     with st.expander("Show Raw JGRI Components (MMS, LD, VPS, MPN)"):
         st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
 
