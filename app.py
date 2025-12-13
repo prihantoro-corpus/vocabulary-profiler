@@ -42,6 +42,14 @@ st.title("🇯🇵 Japanese Lexical Profiler")
 st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word coverage.")
 
 # ===============================================
+# ADD DOCUMENTATION LINK HERE
+# ===============================================
+st.markdown(
+    "**Documentation:** [User Guide and Results Interpretation](https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing)"
+)
+st.markdown("---") # Visual separator
+
+# ===============================================
 # Helper Functions - Caching for Performance
 # ===============================================
 
@@ -392,9 +400,9 @@ if input_files:
         
         **1. Components (What it measures):**
         * **MMS (Mean Morphemes per Sentence):** Proxy for sentence length and integration cost.
-        * **LD (Lexical Density):** Ratio of content words to total morphemes (information load).
+        * **LD (Lexical Density):** Ratio of content words (Nouns, Verbs, Adjectives, Adverbs) to total morphemes (information load).
         * **VPS (Verbs per Sentence):** Captures clause load, subordination, and sentence chaining.
-        * **MPN (Modifiers per Noun):** Estimates Noun Phrase complexity.
+        * **MPN (Modifiers per Noun):** Estimates Noun Phrase complexity (approximated by the ratio of Adjectives + Verbs to Nouns).
 
         **2. Computation (How it's calculated):**
         1.  The raw value of each component is calculated for every text.
