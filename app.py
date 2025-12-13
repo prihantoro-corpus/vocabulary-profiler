@@ -14,6 +14,8 @@ JLPT_FILE_MAP = {
 }
 
 ALL_JLPT_LEVELS = list(JLPT_FILE_MAP.keys())
+# Add the new category
+ALL_OUTPUT_LEVELS = ALL_JLPT_LEVELS + ["NA"]
 
 # --- Import Libraries (Assuming they are in requirements.txt) ---
 try:
@@ -46,7 +48,6 @@ st.markdown("Analyze lexical richness (TTR, HDD, MTLD) and **JLPT word coverage 
 def load_jlpt_wordlist():
     """
     Loads all five JLPT wordlists from local CSV files using pd.read_csv for speed.
-    Assumes the words are in the first data column (index 0).
     """
     jlpt_dict = {}
     
@@ -56,13 +57,8 @@ def load_jlpt_wordlist():
             return None
 
         try:
-            # Read CSV quickly. Assume first row is header (header=0).
-            # We use usecols=[0, 1] to limit reading only the first two columns, 
-            # and then select the appropriate column for words.
             df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
             
-            # --- WORD COLUMN LOGIC ---
-            # Assume the words are in the first column found in the dataframe (index 0)
             if df.empty:
                  st.warning(f"CSV file {filename} is empty.")
                  words = set()
@@ -94,14 +90,31 @@ def initialize_tokenizer():
         return None
 
 # ===============================================
-# Helper: JLPT Coverage
+# Helper: JLPT Coverage (UPDATED)
 # ===============================================
-def analyze_jlpt_coverage(words, jlpt_dict):
-    """Calculates the count of words matching each JLPT level."""
+def analyze_jlpt_coverage(tokens, jlpt_dict):
+    """
+    Calculates word counts for N5-N1 levels and adds an 'NA' category for 
+    words not covered by any list.
+    """
+    unique_tokens_in_text = set(tokens)
     result = {}
+    total_known_words = set()
+
+    # 1. Calculate counts for N5-N1 and build a master set of known words
     for level, wordset in jlpt_dict.items():
-        count = sum(1 for w in words if w in wordset)
+        # Count words in the input that are also in the JLPT word set
+        count = sum(1 for w in unique_tokens_in_text if w in wordset)
         result[level] = count
+        
+        # Add the words found in this level to the total known set
+        total_known_words.update(w for w in unique_tokens_in_text if w in wordset)
+
+    # 2. Calculate NA (Not Applicable/Not Covered)
+    # NA = Unique tokens in text MINUS all unique tokens found in N5-N1 lists
+    na_count = len(unique_tokens_in_text) - len(total_known_words)
+    result["NA"] = na_count
+    
     return result
 
 # ===============================================
@@ -136,6 +149,8 @@ st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LE
 results = []
 if input_files:
     st.header("2. Analysis Results")
+    st.markdown("Coverage columns (JLPT_N5 to NA) report the count of **unique words** from the text found in that category.")
+    
     progress_bar = st.progress(0, text="Processing files...")
     
     for i, uploaded_file in enumerate(input_files):
@@ -158,6 +173,7 @@ if input_files:
             continue
         
         # --- Tokenize Japanese text with Fugashi ---
+        # Note: We use .surface (raw token) for lexical richness and coverage
         tokens = [word.surface for word in tagger(text)]
         text_tokenized = " ".join(tokens)
 
@@ -183,6 +199,7 @@ if input_files:
             pass
 
         # --- JLPT coverage ---
+        # Note: analyze_jlpt_coverage now calculates 'NA' using unique tokens
         jlpt_counts = analyze_jlpt_coverage(tokens, jlpt_dict_to_use)
 
         # --- Compile Result ---
@@ -194,8 +211,9 @@ if input_files:
             "HDD": hdd_value,
             "MTLD": mtld_value,
         }
-        # Add N5-N1 distribution to the result
-        for level in ALL_JLPT_LEVELS:
+        # Add N5-N1 and NA distribution to the result
+        for level in ALL_OUTPUT_LEVELS:
+            # Replace space with underscore for column name uniformity
             result[level.replace(" ", "_")] = jlpt_counts.get(level, 0)
 
         results.append(result)
@@ -213,7 +231,8 @@ if input_files:
 
     # Convert DataFrame to Excel in memory for download
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+    # Ensure xlsxwriter is available via requirements.txt
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
         df_results.to_excel(writer, index=False, sheet_name='Lexical Profile')
     
     st.download_button(
@@ -222,7 +241,3 @@ if input_files:
         file_name="lexical_profile_results.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    
-else:
-    st.header("Upload Files to Begin")
-    st.info("Please upload your Japanese text files (.txt) using the **sidebar**.")
