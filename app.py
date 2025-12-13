@@ -5,6 +5,7 @@ import os
 
 # --- Configuration ---
 # File names MUST match the CSV files committed to your GitHub repository root.
+# This single word list approach resolves the 5-minute loading issue.
 JLPT_FILE_MAP = {
     "JLPT N5": "unknown_source_N5.csv",
     "JLPT N4": "unknown_source_N4.csv",
@@ -14,21 +15,21 @@ JLPT_FILE_MAP = {
 }
 
 ALL_JLPT_LEVELS = list(JLPT_FILE_MAP.keys())
-# Add the new category
+# The final output columns, including the NA (Not Covered) category
 ALL_OUTPUT_LEVELS = ALL_JLPT_LEVELS + ["NA"]
 
-# --- Import Libraries (Assuming they are in requirements.txt) ---
+# --- Import Libraries (Check requirements.txt for external dependencies) ---
 try:
     from lexicalrichness import LexicalRichness
 except ImportError:
-    st.error("The 'lexicalrichness' package is missing.")
+    st.error("The 'lexicalrichness' package is missing. Please check requirements.txt.")
     st.stop()
 
 try:
     # Requires 'fugashi' and 'unidic-lite' in requirements.txt
     from fugashi import Tagger
 except ImportError:
-    st.error("The 'fugashi' package is missing.")
+    st.error("The 'fugashi' package is missing. Please check requirements.txt.")
     st.stop()
 
 # --- Layout and Title ---
@@ -48,6 +49,7 @@ st.markdown("Analyze lexical richness (TTR, HDD, MTLD) and **JLPT word coverage 
 def load_jlpt_wordlist():
     """
     Loads all five JLPT wordlists from local CSV files using pd.read_csv for speed.
+    Assumes the words are in the first data column.
     """
     jlpt_dict = {}
     
@@ -57,6 +59,7 @@ def load_jlpt_wordlist():
             return None
 
         try:
+            # Read CSV quickly. Assume first row is header (header=0).
             df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
             
             if df.empty:
@@ -90,7 +93,7 @@ def initialize_tokenizer():
         return None
 
 # ===============================================
-# Helper: JLPT Coverage (UPDATED)
+# Helper: JLPT Coverage
 # ===============================================
 def analyze_jlpt_coverage(tokens, jlpt_dict):
     """
@@ -128,7 +131,7 @@ tagger = initialize_tokenizer()
 if jlpt_dict_to_use is None or tagger is None:
     st.stop() # Stop execution if prerequisites fail
 
-# --- Sidebar Configuration (Upload files here as requested) ---
+# --- Sidebar Configuration (Upload files here) ---
 st.sidebar.header("1. Upload Raw Text Files")
 
 input_files = st.sidebar.file_uploader(
@@ -149,7 +152,7 @@ st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LE
 results = []
 if input_files:
     st.header("2. Analysis Results")
-    st.markdown("Coverage columns (JLPT_N5 to NA) report the count of **unique words** from the text found in that category.")
+    st.markdown("Coverage columns report the count of **unique words** from the text found in that category.")
     
     progress_bar = st.progress(0, text="Processing files...")
     
@@ -173,7 +176,6 @@ if input_files:
             continue
         
         # --- Tokenize Japanese text with Fugashi ---
-        # Note: We use .surface (raw token) for lexical richness and coverage
         tokens = [word.surface for word in tagger(text)]
         text_tokenized = " ".join(tokens)
 
@@ -199,7 +201,6 @@ if input_files:
             pass
 
         # --- JLPT coverage ---
-        # Note: analyze_jlpt_coverage now calculates 'NA' using unique tokens
         jlpt_counts = analyze_jlpt_coverage(tokens, jlpt_dict_to_use)
 
         # --- Compile Result ---
@@ -213,7 +214,6 @@ if input_files:
         }
         # Add N5-N1 and NA distribution to the result
         for level in ALL_OUTPUT_LEVELS:
-            # Replace space with underscore for column name uniformity
             result[level.replace(" ", "_")] = jlpt_counts.get(level, 0)
 
         results.append(result)
@@ -227,7 +227,61 @@ if input_files:
     df_results = pd.DataFrame(results)
     
     st.subheader("Summary Table")
-    st.dataframe(df_results, use_container_width=True)
+
+    # Define Column Explanations (for hover/help tooltips)
+    col_config = {
+        "Filename": st.column_config.Column(
+            "Filename", 
+            help="The name of the analyzed input file."
+        ),
+        "Tokens": st.column_config.Column(
+            "Tokens ❓", 
+            help="Total number of words (Tokens, N) in the text. Includes all repetitions."
+        ),
+        "Types": st.column_config.Column(
+            "Types ❓", 
+            help="Total number of unique words (Types, V) in the text. Repetitions are counted only once."
+        ),
+        "TTR": st.column_config.Column(
+            "TTR ❓", 
+            help="Type-Token Ratio (V/N). Measures lexical richness. Higher score = more diverse vocabulary."
+        ),
+        "HDD": st.column_config.Column(
+            "HDD ❓", 
+            help="Hellinger's D. A length-independent measure of lexical diversity. Higher score = more diverse vocabulary."
+        ),
+        "MTLD": st.column_config.Column(
+            "MTLD ❓", 
+            help="Measure of Textual Lexical Diversity. Estimates how long the text maintains a certain TTR threshold. Higher score = sustained lexical richness."
+        ),
+        "JLPT_N5": st.column_config.Column(
+            "JLPT_N5 ❓", 
+            help="Count of unique words in the text found in the N5 word list."
+        ),
+        "JLPT_N4": st.column_config.Column(
+            "JLPT_N4 ❓", 
+            help="Count of unique words in the text found in the N4 word list."
+        ),
+        "JLPT_N3": st.column_config.Column(
+            "JLPT_N3 ❓", 
+            help="Count of unique words in the text found in the N3 word list."
+        ),
+        "JLPT_N2": st.column_config.Column(
+            "JLPT_N2 ❓", 
+            help="Count of unique words in the text found in the N2 word list."
+        ),
+        "JLPT_N1": st.column_config.Column(
+            "JLPT_N1 ❓", 
+            help="Count of unique words in the text found in the N1 word list."
+        ),
+        "NA": st.column_config.Column(
+            "NA ❓", 
+            help="Count of unique words NOT found in the N5, N4, N3, N2, or N1 word lists (Not Applicable/Not Covered). This represents advanced/unlisted vocabulary."
+        ),
+    }
+
+    # Display the DataFrame using the enhanced configuration
+    st.dataframe(df_results, column_config=col_config, use_container_width=True)
 
     # Convert DataFrame to Excel in memory for download
     output = io.BytesIO()
@@ -241,3 +295,7 @@ if input_files:
         file_name="lexical_profile_results.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    
+else:
+    st.header("Upload Files to Begin")
+    st.info("Please upload your Japanese text files (.txt) using the **sidebar**.")
