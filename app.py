@@ -42,14 +42,6 @@ st.title("🇯🇵 Japanese Lexical Profiler")
 st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word coverage.")
 
 # ===============================================
-# ADD DOCUMENTATION LINK HERE
-# ===============================================
-st.markdown(
-    "**Documentation:** [User Guide and Results Interpretation](https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing)"
-)
-st.markdown("---") # Visual separator
-
-# ===============================================
 # Helper Functions - Caching for Performance
 # ===============================================
 
@@ -252,6 +244,13 @@ input_files = st.sidebar.file_uploader(
 st.sidebar.header("2. Word List Used")
 st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LEVELS)} levels).")
 
+# NEW: Documentation Link added to the sidebar
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+    "**Documentation:** [User Guide and Results Interpretation](https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing)"
+)
+st.sidebar.markdown("---")
+
 # ===============================================
 # Main Area: Process and Display
 # ===============================================
@@ -338,7 +337,7 @@ if input_files:
         result = {
             "Filename": data['Filename'],
             "JGRI": jgri_values[i],
-            # JGRI Raw Components (Added back to main results)
+            # JGRI Raw Components
             "MMS": data['MMS'],
             "LD": data['LD'],
             "VPS": data['VPS'],
@@ -372,26 +371,27 @@ if input_files:
     df_results = pd.DataFrame(results)
     st.subheader("Summary Table (Lexical, Structural & Readability Metrics)")
     
-    # Manually define column names for clarity/tooltips 
-    display_names = {
-        "JGRI": "JGRI ❓",
-        "MMS": "MMS ❓",
-        "LD": "LD ❓",
-        "VPS": "VPS ❓",
-        "MPN": "MPN ❓",
-        "Kanji_Density": "Kanji Density ❓",
-        "Script_Distribution": "Script Distribution ❓",
-        "Tokens": "Tokens ❓",
-        "Types": "Types ❓",
-        "TTR": "TTR ❓",
-        "HDD": "HDD ❓",
-        "MTLD": "MTLD ❓",
-        "JLPT_N5": "JLPT_N5 ❓",
-        "JLPT_N4": "JLPT_N4 ❓",
-        "JLPT_N3": "JLPT_N3 ❓",
-        "JLPT_N2": "JLPT_N2 ❓",
-        "JLPT_N1": "JLPT_N1 ❓",
-        "NA": "NA ❓",
+    # --- Define Column Configuration for Tooltips and Formatting ---
+    column_configuration = {
+        "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
+        "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
+        "MMS": st.column_config.NumberColumn("MMS", format="%.2f", help="Mean Morphemes per Sentence. Raw value for sentence length."),
+        "LD": st.column_config.NumberColumn("LD", format="%.3f", help="Lexical Density (Content Words / Total Morphemes). Raw value for information load."),
+        "VPS": st.column_config.NumberColumn("VPS", format="%.2f", help="Verbs per Sentence. Raw value for clause load."),
+        "MPN": st.column_config.NumberColumn("MPN", format="%.2f", help="Modifiers per Noun. Raw value for Noun Phrase complexity."),
+        "Kanji_Density": st.column_config.NumberColumn("Kanji Density", format="%.2f", help="Average number of Kanji characters per sentence."),
+        "Script_Distribution": st.column_config.TextColumn("Script Distribution", help="Percentage breakdown: K=Kanji, H=Hiragana, T=Katakana, O=Other."),
+        "Tokens": st.column_config.NumberColumn("Tokens", help="Total count of all morphemes/words (N).", width="small"),
+        "Types": st.column_config.NumberColumn("Types", help="Total count of unique morphemes/words (V).", width="small"),
+        "TTR": st.column_config.NumberColumn("TTR", format="%.3f", help="Type-Token Ratio (V/N). Vocabulary diversity, highly sensitive to length.", width="small"),
+        "HDD": st.column_config.NumberColumn("HDD", format="%.3f", help="Hellinger's D. Length-independent measure of lexical diversity."),
+        "MTLD": st.column_config.NumberColumn("MTLD", format="%.1f", help="Measure of Textual Lexical Diversity. Robust, length-independent measure."),
+        "JLPT_N5": st.column_config.NumberColumn("JLPT N5", help="Count of unique words covered by the N5 list.", width="small"),
+        "JLPT_N4": st.column_config.NumberColumn("JLPT N4", help="Count of unique words covered by the N4 list.", width="small"),
+        "JLPT_N3": st.column_config.NumberColumn("JLPT N3", help="Count of unique words covered by the N3 list.", width="small"),
+        "JLPT_N2": st.column_config.NumberColumn("JLPT N2", help="Count of unique words covered by the N2 list.", width="small"),
+        "JLPT_N1": st.column_config.NumberColumn("JLPT N1", help="Count of unique words covered by the N1 list.", width="small"),
+        "NA": st.column_config.NumberColumn("NA", help="Count of unique words NOT covered by N5-N1 lists.", width="small"),
     }
     
     st.markdown("""
@@ -399,10 +399,10 @@ if input_files:
         The JGRI is a composite, corpus-relative index estimating the grammatical and morphosyntactic complexity of the text. **Higher values indicate greater structural complexity.**
         
         **1. Components (What it measures):**
-        * **MMS (Mean Morphemes per Sentence):** Proxy for sentence length and integration cost.
-        * **LD (Lexical Density):** Ratio of content words (Nouns, Verbs, Adjectives, Adverbs) to total morphemes (information load).
-        * **VPS (Verbs per Sentence):** Captures clause load, subordination, and sentence chaining.
-        * **MPN (Modifiers per Noun):** Estimates Noun Phrase complexity (approximated by the ratio of Adjectives + Verbs to Nouns).
+        * **MMS** (Mean Morphemes per Sentence)
+        * **LD** (Lexical Density)
+        * **VPS** (Verbs per Sentence)
+        * **MPN** (Modifiers per Noun)
 
         **2. Computation (How it's calculated):**
         1.  The raw value of each component is calculated for every text.
@@ -426,24 +426,16 @@ if input_files:
     st.dataframe(df_interpretation.set_index('JGRI Value'), use_container_width=True)
     
     st.markdown("---")
-    
-    st.markdown("""
-        **Other Column Explanations:**
-        * **Kanji Density:** Average Kanji characters per sentence.
-        * **Script Distribution:** Percentage breakdown (K=Kanji, H=Hiragana, T=Katakana, O=Other).
-        * **Tokens/Types:** Total words / Unique words.
-        * **TTR/HDD/MTLD:** Lexical richness metrics.
-        * **JLPT/NA:** Count of unique words covered by the JLPT level or Not Covered (NA).
-    """)
 
-    # Filter columns to ensure consistent order (including new JGRI components)
+    # Filter columns to ensure consistent order (including all components)
     sorted_columns = ["Filename", "JGRI", "MMS", "LD", "VPS", "MPN", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
     for level in ALL_OUTPUT_LEVELS:
         sorted_columns.append(level.replace(" ", "_"))
         
     df_results = df_results[[col for col in sorted_columns if col in df_results.columns]]
     
-    st.dataframe(df_results.rename(columns=display_names), use_container_width=True)
+    # Display the final table with column configuration (tooltips)
+    st.dataframe(df_results, column_config=column_configuration, use_container_width=True)
 
     # --- 2B. DETAILED POS DISTRIBUTION TABLE ---
     st.subheader("Detailed Part-of-Speech (POS) Distribution")
@@ -455,9 +447,9 @@ if input_files:
 
     st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
     
-    # --- 2C. RAW JGRI COMPONENTS TABLE (Now redundant, but keeping for debug) ---
+    # --- 2C. RAW JGRI COMPONENTS TABLE (Keeping for debug/full data in Excel) ---
     with st.expander("Show Raw JGRI Components (Original Data for MMS, LD, VPS, MPN)"):
-        st.markdown("This table provides the original raw values used to calculate the JGRI index.")
+        st.markdown("This table provides the original raw values used to calculate the JGRI index. These values are also in the main table.")
         st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
 
 
@@ -465,7 +457,14 @@ if input_files:
     
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
-        df_results.to_excel(writer, index=False, sheet_name='Lexical Profile')
+        # Using a version of df_results without Streamlit column configs for clean export
+        df_export = df_results.rename(columns={
+            "JGRI": "JGRI", "MMS": "MMS", "LD": "LD", "VPS": "VPS", "MPN": "MPN", 
+            "Kanji_Density": "Kanji Density", "Script_Distribution": "Script Distribution", 
+            "Tokens": "Tokens", "Types": "Types", "TTR": "TTR", "HDD": "HDD", "MTLD": "MTLD",
+            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT_N2": "JLPT N2", "JLPT_N1": "JLPT N1", "NA": "NA"
+        })
+        df_export.to_excel(writer, index=False, sheet_name='Lexical Profile')
         df_pos_percentage.to_excel(writer, index=True, sheet_name='POS Distribution')
         df_raw_metrics.to_excel(writer, index=False, sheet_name='Raw JGRI Components')
         
