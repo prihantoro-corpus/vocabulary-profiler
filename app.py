@@ -5,7 +5,8 @@ import os
 import re
 from collections import Counter
 import numpy as np
-import matplotlib.pyplot as plt # <-- New Import
+import matplotlib.pyplot as plt 
+import matplotlib.ticker as ticker # <-- New Import for formatting plots
 
 # --- Configuration ---
 # File names MUST match the CSV files committed to your GitHub repository root.
@@ -41,7 +42,6 @@ st.set_page_config(
 
 st.title("🇯🇵 Japanese Lexical Profiler")
 st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word coverage.")
-
 
 # ===============================================
 # Helper Functions - Caching for Performance
@@ -158,25 +158,20 @@ def calculate_jgri(metrics_df):
     return jgri_values
 
 # ===============================================
-# Helper: Plotting Functions (NEW)
+# Helper: Plotting Functions
 # ===============================================
 
 def plot_jlpt_coverage(df, filename="jlpt_coverage.png"):
     """Creates a normalized stacked bar chart of JLPT coverage."""
     
-    # 1. Prepare data (normalize to 100%)
     df_plot = df[['Filename', 'JLPT_N5', 'JLPT_N4', 'JLPT_N3', 'JLPT_N2', 'JLPT_N1', 'NA']].copy()
-    
-    # Calculate total unique words (Types) for normalization
     df_plot['Total_Types'] = df_plot.iloc[:, 1:].sum(axis=1)
     
-    # Normalize counts to percentages (0-100)
-    for col in df_plot.columns[1:-1]: # Skip Filename and Total_Types
+    for col in df_plot.columns[1:-1]:
         df_plot[col] = (df_plot[col] / df_plot['Total_Types']) * 100
 
     df_plot = df_plot.set_index('Filename').drop(columns='Total_Types')
 
-    # Define colors (using a spectrum from light to dark/red for difficulty)
     colors = {
         'JLPT_N5': '#51A3A3', 
         'JLPT_N4': '#51C4D4',
@@ -188,10 +183,8 @@ def plot_jlpt_coverage(df, filename="jlpt_coverage.png"):
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Plot normalized stacked bar chart
     df_plot.plot(kind='barh', stacked=True, color=[colors[col] for col in df_plot.columns], ax=ax)
     
-    # Formatting
     ax.set_title("Normalized JLPT Vocabulary Coverage (%)", fontsize=14)
     ax.set_xlabel("Percentage of Unique Words (%)", fontsize=12)
     ax.set_ylabel("Text File", fontsize=12)
@@ -207,17 +200,14 @@ def plot_jgri_comparison(df, filename="jgri_comparison.png"):
     
     df_plot = df[['Filename', 'JGRI']].set_index('Filename')
     
-    # Define colors: Positive/Negative relative to 0
     colors = ['#1f77b4' if x >= 0 else '#d62728' for x in df_plot['JGRI']]
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
     df_plot['JGRI'].plot(kind='bar', color=colors, ax=ax)
     
-    # Add horizontal line at 0 (corpus mean)
     ax.axhline(0, color='gray', linestyle='--')
     
-    # Formatting
     ax.set_title("JGRI Comparison (Relative Grammatical Complexity)", fontsize=14)
     ax.set_xlabel("Text File", fontsize=12)
     ax.set_ylabel("JGRI Score (Z-Score Average)", fontsize=12)
@@ -228,10 +218,101 @@ def plot_jgri_comparison(df, filename="jgri_comparison.png"):
     plt.close(fig)
     return filename
 
+def plot_scripts_distribution(df, filename="scripts_distribution.png"):
+    """Creates a horizontal stacked bar chart of script type percentages."""
+    
+    df_scripts = pd.DataFrame()
+    for index, row in df.iterrows():
+        # Parse the Script_Distribution string
+        parts = row['Script_Distribution'].split(' | ')
+        data = {p.split(': ')[0].strip(): float(p.split(': ')[1].replace('%', '').strip()) for p in parts}
+        df_scripts = pd.concat([df_scripts, pd.DataFrame([data], index=[row['Filename']])])
+    
+    # Define script columns and colors
+    script_cols = ['K', 'H', 'T', 'O']
+    df_scripts = df_scripts[script_cols].fillna(0)
+    
+    colors = {
+        'K': '#483D8B', # Kanji (Structural)
+        'H': '#8A2BE2', # Hiragana (Functional)
+        'T': '#DA70D6', # Katakana (Foreign/Emphasis)
+        'O': '#A9A9A9'  # Other (Punctuation, Symbols, Romaji)
+    }
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    df_scripts.plot(kind='barh', stacked=True, color=[colors[col] for col in df_scripts.columns], ax=ax)
+    
+    ax.set_title("Script Distribution (Percentage of Characters)", fontsize=14)
+    ax.set_xlabel("Percentage (%)", fontsize=12)
+    ax.set_ylabel("Text File", fontsize=12)
+    ax.legend(['Kanji', 'Hiragana', 'Katakana', 'Other'], title="Script Type", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
+def plot_mtld_comparison(df, filename="mtld_comparison.png"):
+    """Creates a bar chart comparing MTLD scores across texts."""
+    
+    df_plot = df[['Filename', 'MTLD']].set_index('Filename')
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    df_plot['MTLD'].plot(kind='bar', color='#3CB371', ax=ax)
+    
+    ax.set_title("MTLD Comparison (Lexical Diversity)", fontsize=14)
+    ax.set_xlabel("Text File", fontsize=12)
+    ax.set_ylabel("MTLD Score", fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
+def plot_token_type_curve(corpus_data, filename="token_type_curve.png"):
+    """
+    Plots the cumulative Type (unique word) count vs. Token (total word) count 
+    for each text. Requires the raw token list from corpus_data.
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for data in corpus_data:
+        tokens = data['Tokens']
+        if not tokens:
+            continue
+            
+        token_count = []
+        type_count = []
+        unique_words = set()
+        
+        for i, token in enumerate(tokens):
+            token_count.append(i + 1)
+            unique_words.add(token)
+            type_count.append(len(unique_words))
+        
+        ax.plot(token_count, type_count, label=data['Filename'])
+        
+    ax.set_title("Token-Type Curve (Vocabulary Growth)", fontsize=14)
+    ax.set_xlabel("Tokens (Total Words)", fontsize=12)
+    ax.set_ylabel("Types (Unique Words)", fontsize=12)
+    ax.legend(title="Text File", loc='lower right')
+    
+    # Use thousands separator for readability
+    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ','))
+    ax.xaxis.set_major_formatter(formatter)
+    
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
 # ===============================================
 # Other Helper Functions (Script, Kanji, JLPT, POS)
 # ===============================================
-# (These functions remain the same as the prior version)
+# (Remaining helper functions are the same as prior version)
 
 def analyze_script_distribution(text):
     total_chars = len(text)
@@ -328,6 +409,7 @@ results_raw = []
 results = []
 pos_percentage_results = []
 pos_count_results = []
+corpus_data = [] # Defined here to be accessible for plotting
 
 if input_files:
     st.header("2. Analysis Results")
@@ -336,8 +418,6 @@ if input_files:
     progress_bar = st.progress(0, text="--- PASS 1: Analyzing components and raw metrics ---")
     
     # --- PASS 1: Calculate all raw metrics for the corpus ---
-    corpus_data = []
-    
     for i, uploaded_file in enumerate(input_files):
         filename = uploaded_file.name
         content_bytes = uploaded_file.read()
@@ -436,28 +516,52 @@ if input_files:
     # --- DISPLAY SECTION ---
     # =========================================================================
 
-    # --- 2A. VISUALIZATIONS (NEW SECTION) ---
+    # --- 3A. VISUALIZATIONS ---
     df_results = pd.DataFrame(results)
 
     st.subheader("3. Visualizations")
     
     if len(df_results) >= 1:
-        # Plot 1: JLPT Coverage (Normalized)
-        jlpt_plot_file = plot_jlpt_coverage(df_results, filename="jlpt_coverage.png")
-        st.image(jlpt_plot_file, caption="Normalized JLPT Vocabulary Coverage (Percentage of Types)")
+        # Create columns for side-by-side display
+        col1, col2 = st.columns(2)
+        
+        # Plot 1: JLPT Coverage (Normalized) - Column 1
+        with col1:
+            jlpt_plot_file = plot_jlpt_coverage(df_results, filename="jlpt_coverage.png")
+            st.image(jlpt_plot_file, caption="JLPT Vocabulary Coverage (Proportion of Unique Words)")
+            
+        # Plot 2: Scripts Distribution - Column 2
+        with col2:
+            scripts_plot_file = plot_scripts_distribution(df_results, filename="scripts_distribution.png")
+            st.image(scripts_plot_file, caption="Scripts Distribution (Kanji, Hiragana, Katakana, Other)")
+            
+        st.markdown("---")
+        
+        col3, col4, col5 = st.columns(3)
 
-        # Plot 2: JGRI Comparison (Only useful if more than one file is present)
-        if len(df_results) > 1:
-            jgri_plot_file = plot_jgri_comparison(df_results, filename="jgri_comparison.png")
-            st.image(jgri_plot_file, caption="JGRI Comparison (Relative Grammatical Complexity)")
-        else:
-            st.info("Upload at least two files to compare JGRI scores effectively.")
-    
-    st.markdown("---")
+        # Plot 3: JGRI Comparison (Structural Complexity) - Column 3
+        with col3:
+            if len(df_results) > 1:
+                jgri_plot_file = plot_jgri_comparison(df_results, filename="jgri_comparison.png")
+                st.image(jgri_plot_file, caption="JGRI Comparison (Relative Grammatical Complexity)")
+            else:
+                st.info("JGRI comparison requires at least two files.")
 
+        # Plot 4: MTLD Comparison (Lexical Diversity) - Column 4
+        with col4:
+            mtld_plot_file = plot_mtld_comparison(df_results, filename="mtld_comparison.png")
+            st.image(mtld_plot_file, caption="MTLD Comparison (Lexical Diversity Score)")
+
+        # Plot 5: Token-Type Curve (Vocabulary Growth) - Column 5 (Full width plot)
+        with col5:
+             # This plot is usually more effective across a wider area, but we can place it here.
+             token_type_plot_file = plot_token_type_curve(corpus_data, filename="token_type_curve.png")
+             st.image(token_type_plot_file, caption="Token-Type Curve (Vocabulary Acquisition)")
+             
+        st.markdown("---")
 
     # --- 2B. MAIN SUMMARY TABLE (Lexical, Structural, Coverage) ---
-    st.subheader("Summary Table (Lexical, Structural & Readability Metrics)")
+    st.subheader("4. Summary Table (Lexical, Structural & Readability Metrics)")
     
     # --- Define Column Configuration for Tooltips and Formatting ---
     column_configuration = {
@@ -526,7 +630,7 @@ if input_files:
     st.dataframe(df_results, column_config=column_configuration, use_container_width=True)
 
     # --- 2C. DETAILED POS DISTRIBUTION TABLE ---
-    st.subheader("Detailed Part-of-Speech (POS) Distribution")
+    st.subheader("5. Detailed Part-of-Speech (POS) Distribution")
     st.markdown("This table shows the percentage of **all** detected grammatical categories for each file.")
     
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
