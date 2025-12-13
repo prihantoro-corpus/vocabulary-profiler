@@ -7,6 +7,7 @@ from collections import Counter
 import numpy as np
 
 # --- Configuration ---
+# File names MUST match the CSV files committed to your GitHub repository root.
 JLPT_FILE_MAP = {
     "JLPT N5": "unknown_source_N5.csv",
     "JLPT N4": "unknown_source_N4.csv",
@@ -46,29 +47,37 @@ st.markdown("Analyze lexical richness, **structural complexity**, and JLPT word 
 
 @st.cache_data(show_spinner="Loading JLPT Wordlists from CSVs...")
 def load_jlpt_wordlist():
-    # ... (identical to previous version) ...
+    """
+    Loads all five JLPT wordlists from local CSV files using pd.read_csv for speed.
+    """
     jlpt_dict = {}
+    
     for level_name, filename in JLPT_FILE_MAP.items():
         if not os.path.exists(filename):
             st.error(f"Required CSV file '{filename}' not found in the repository root.")
             return None
+
         try:
             df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
+            
             if df.empty:
                  words = set()
             else:
                  word_column = df.columns[0]
                  words = set(df[word_column].astype(str).tolist())
+                 
             jlpt_dict[level_name] = words
+            
         except Exception as e:
             st.error(f"Error reading CSV file '{filename}': {e}")
             return None
+            
     st.success("JLPT Wordlists loaded successfully from CSVs!")
     return jlpt_dict
 
 @st.cache_resource(show_spinner="Initializing Fugashi Tokenizer...")
 def initialize_tokenizer():
-    # ... (identical to previous version) ...
+    """Initializes the Fugashi Tagger."""
     try:
         tagger = Tagger()
         st.success("Fugashi tokenizer loaded successfully!")
@@ -129,7 +138,6 @@ def calculate_jgri(metrics_df):
     sigma = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].std()
 
     # Handle cases where sigma is zero (e.g., if only one text is uploaded)
-    # If sigma is 0, the z-score is defined as 0.
     sigma = sigma.replace(0, 1e-6) 
     
     for index, row in metrics_df.iterrows():
@@ -151,6 +159,7 @@ def calculate_jgri(metrics_df):
 # Other Helper Functions
 # ===============================================
 def analyze_script_distribution(text):
+    """Calculates the percentage of Kanji, Hiragana, Katakana, and Romaji/Other."""
     total_chars = len(text)
     if total_chars == 0:
         return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}
@@ -166,6 +175,7 @@ def analyze_script_distribution(text):
     return percentages
 
 def analyze_kanji_density(text):
+    """Calculates the average number of Kanji characters per sentence."""
     sentences = re.split(r'[。！？\n]', text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
     if not sentences:
@@ -176,6 +186,7 @@ def analyze_kanji_density(text):
     return round(density, 2)
 
 def analyze_jlpt_coverage(tokens, jlpt_dict):
+    """Calculates word counts for N5-N1 levels and adds an 'NA' category."""
     unique_tokens_in_text = set(tokens)
     result = {}
     total_known_words = set()
@@ -188,6 +199,7 @@ def analyze_jlpt_coverage(tokens, jlpt_dict):
     return result
 
 def analyze_pos_distribution(tagged_nodes, filename):
+    """Calculates the raw counts and percentage distribution of ALL POS categories."""
     if not tagged_nodes:
         return {"Filename": filename}, {"Filename": filename}
     pos_tags = [
@@ -318,6 +330,12 @@ if input_files:
         result = {
             "Filename": data['Filename'],
             "JGRI": jgri_values[i],
+            # JGRI Raw Components (Added back to main results)
+            "MMS": data['MMS'],
+            "LD": data['LD'],
+            "VPS": data['VPS'],
+            "MPN": data['MPN'],
+            # Other Structural/Lexical Metrics
             "Kanji_Density": kanji_density,
             "Script_Distribution": f"K: {script_distribution['Kanji']}% | H: {script_distribution['Hiragana']}% | T: {script_distribution['Katakana']}% | O: {script_distribution['Other']}%",
             "Tokens": total_tokens,
@@ -349,6 +367,10 @@ if input_files:
     # Manually define column names for clarity/tooltips 
     display_names = {
         "JGRI": "JGRI ❓",
+        "MMS": "MMS ❓",
+        "LD": "LD ❓",
+        "VPS": "VPS ❓",
+        "MPN": "MPN ❓",
         "Kanji_Density": "Kanji Density ❓",
         "Script_Distribution": "Script Distribution ❓",
         "Tokens": "Tokens ❓",
@@ -369,15 +391,15 @@ if input_files:
         The JGRI is a composite, corpus-relative index estimating the grammatical and morphosyntactic complexity of the text. **Higher values indicate greater structural complexity.**
         
         **1. Components (What it measures):**
-        * **Mean Morphemes per Sentence (MMS):** Proxy for sentence length and integration cost.
-        * **Lexical Density (LD):** Ratio of content words (Nouns, Verbs, Adjectives, Adverbs) to total morphemes (information load).
-        * **Verbs per Sentence (VPS):** Captures clause load, subordination, and sentence chaining.
-        * **Modifiers per Noun (MPN):** Estimates Noun Phrase complexity (approximated by the ratio of Adjectives + Verbs to Nouns).
+        * **MMS (Mean Morphemes per Sentence):** Proxy for sentence length and integration cost.
+        * **LD (Lexical Density):** Ratio of content words to total morphemes (information load).
+        * **VPS (Verbs per Sentence):** Captures clause load, subordination, and sentence chaining.
+        * **MPN (Modifiers per Noun):** Estimates Noun Phrase complexity.
 
         **2. Computation (How it's calculated):**
-        1.  The raw value of each component (MMS, LD, VPS, MPN) is calculated for every text.
-        2.  Each raw component is **z-score normalised** across the *entire uploaded corpus* using the formula $z = \frac{x - \mu}{\sigma}$.
-        3.  The final JGRI score is the **average** of the four z-scores: $\mathbf{JGRI} = \frac{z_{MMS} + z_{LD} + z_{VPS} + z_{MPN}}{4}$.
+        1.  The raw value of each component is calculated for every text.
+        2.  Each raw component is **z-score normalised** across the *entire uploaded corpus*.
+        3.  The final JGRI score is the **average** of the four z-scores: $\mathbf{JGRI} = \frac{(\text{z-MMS} + \text{z-LD} + \text{z-VPS} + \text{z-MPN})}{4}$.
         
         **3. Interpretation Thresholds (What the score means):**
     """)
@@ -406,8 +428,8 @@ if input_files:
         * **JLPT/NA:** Count of unique words covered by the JLPT level or Not Covered (NA).
     """)
 
-    # Filter columns to ensure consistent order
-    sorted_columns = ["Filename", "JGRI", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
+    # Filter columns to ensure consistent order (including new JGRI components)
+    sorted_columns = ["Filename", "JGRI", "MMS", "LD", "VPS", "MPN", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
     for level in ALL_OUTPUT_LEVELS:
         sorted_columns.append(level.replace(" ", "_"))
         
@@ -425,8 +447,9 @@ if input_files:
 
     st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
     
-    # --- 2C. RAW JGRI COMPONENTS TABLE ---
-    with st.expander("Show Raw JGRI Components (MMS, LD, VPS, MPN)"):
+    # --- 2C. RAW JGRI COMPONENTS TABLE (Now redundant, but keeping for debug) ---
+    with st.expander("Show Raw JGRI Components (Original Data for MMS, LD, VPS, MPN)"):
+        st.markdown("This table provides the original raw values used to calculate the JGRI index.")
         st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
 
 
