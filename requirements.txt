@@ -1,6 +1,5 @@
-streamlit
-ipadic
 streamlit>=1.26.0  # Force a modern version
+ipadic
 pandas
 openpyxl
 fugashi
