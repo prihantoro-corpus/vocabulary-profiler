@@ -272,6 +272,29 @@ def plot_mtld_comparison(df, filename="mtld_comparison.png"):
     plt.close(fig)
     return filename
 
+def plot_token_count_comparison(df, filename="token_count_comparison.png"):
+    """Creates a bar chart comparing total token count across texts."""
+    
+    df_plot = df[['Filename', 'Tokens']].set_index('Filename')
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    df_plot['Tokens'].plot(kind='bar', color='#6A5ACD', ax=ax)
+    
+    ax.set_title("Total Token Count Comparison", fontsize=14)
+    ax.set_xlabel("Text File", fontsize=12)
+    ax.set_ylabel("Total Tokens (Words)", fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    
+    # Use thousands separator for readability
+    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ','))
+    ax.yaxis.set_major_formatter(formatter)
+    
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
 def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_curve.png"):
     """
     Plots the rolling mean Type-Token Ratio (TTR) over the text length.
@@ -314,7 +337,6 @@ def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_cu
     plt.savefig(filename)
     plt.close(fig)
     return filename
-
 
 # ===============================================
 # Other Helper Functions (Script, Kanji, JLPT, POS)
@@ -542,7 +564,7 @@ if input_files:
             
         st.markdown("---")
         
-        col3, col4 = st.columns(2)
+        col3, col4, col5 = st.columns(3)
 
         # Plot 3: JGRI Comparison (Structural Complexity) - Column 3
         with col3:
@@ -557,15 +579,21 @@ if input_files:
             mtld_plot_file = plot_mtld_comparison(df_results, filename="mtld_comparison.png")
             st.image(mtld_plot_file, caption="MTLD Comparison (Lexical Diversity Score)")
 
+        # Plot 5: Token Count Comparison (Simplex Bar Plot) - Column 5
+        with col5:
+            token_count_plot_file = plot_token_count_comparison(df_results, filename="token_count_comparison.png")
+            st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
+            
         st.markdown("---")
 
-        # Plot 5: Rolling Mean TTR Curve (Full width plot)
+        # Plot 6: Rolling Mean TTR Curve (Full width plot)
         st.subheader("Rolling Mean TTR Curve")
         st.markdown("This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.")
         rolling_ttr_plot_file = plot_rolling_ttr_curve(corpus_data, filename="rolling_ttr_curve.png")
         st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
         
         st.markdown("---")
+
 
     # --- 2B. MAIN SUMMARY TABLE (Lexical, Structural, Coverage) ---
     st.subheader("4. Summary Table (Lexical, Structural & Readability Metrics)")
