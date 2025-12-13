@@ -338,6 +338,60 @@ def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_cu
     plt.close(fig)
     return filename
 
+def plot_ttr_comparison(df, filename="ttr_comparison.png"):
+    """Creates a bar chart comparing Type-Token Ratio (TTR) scores across texts."""
+    
+    df_plot = df[['Filename', 'TTR']].set_index('Filename')
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    df_plot['TTR'].plot(kind='bar', color='#FF8C00', ax=ax)
+    
+    ax.set_title("Type-Token Ratio (TTR) Comparison", fontsize=14)
+    ax.set_xlabel("Text File", fontsize=12)
+    ax.set_ylabel("TTR Score (0-1)", fontsize=12)
+    ax.tick_params(axis='x', rotation=45)
+    ax.set_ylim(0, df_plot['TTR'].max() * 1.1)
+    
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
+def plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png"):
+    """
+    Creates a normalized stacked bar chart for comparing the distribution of 
+    Part-of-Speech categories across texts.
+    """
+    # Use the transpose of the POS percentage DataFrame
+    df_plot = df_pos_percentage.set_index('Filename').copy()
+    
+    # Get the top 10 tags across all files for clear visualization
+    all_tags = df_plot.columns.tolist()
+    total_tag_percentage = df_plot.mean().sort_values(ascending=False)
+    top_tags = total_tag_percentage.head(10).index.tolist()
+    
+    df_plot_top = df_plot[top_tags]
+
+    # Use a distinct color map (e.g., Tab20)
+    cmap = plt.cm.get_cmap('tab20', len(top_tags))
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot normalized stacked bar chart (implicitly 100% since data is percentage)
+    df_plot_top.plot(kind='barh', stacked=True, colormap=cmap, ax=ax)
+    
+    # Formatting
+    ax.set_title("Normalized Part-of-Speech Distribution (Top 10 Categories)", fontsize=14)
+    ax.set_xlabel("Percentage (%)", fontsize=12)
+    ax.set_ylabel("Text File", fontsize=12)
+    ax.legend(title="POS Category", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    
+    plt.savefig(filename)
+    plt.close(fig)
+    return filename
+
 # ===============================================
 # Other Helper Functions (Script, Kanji, JLPT, POS)
 # ===============================================
@@ -545,28 +599,29 @@ if input_files:
 
     # --- 3A. VISUALIZATIONS ---
     df_results = pd.DataFrame(results)
+    df_pos_percentage = pd.DataFrame(pos_percentage_results)
+
 
     st.subheader("3. Visualizations")
     
     if len(df_results) >= 1:
-        # Create columns for side-by-side display
+        
+        # --- Row 1: JLPT and Scripts ---
         col1, col2 = st.columns(2)
         
-        # Plot 1: JLPT Coverage (Normalized) - Column 1
         with col1:
             jlpt_plot_file = plot_jlpt_coverage(df_results, filename="jlpt_coverage.png")
             st.image(jlpt_plot_file, caption="JLPT Vocabulary Coverage (Proportion of Unique Words)")
             
-        # Plot 2: Scripts Distribution - Column 2
         with col2:
             scripts_plot_file = plot_scripts_distribution(df_results, filename="scripts_distribution.png")
             st.image(scripts_plot_file, caption="Scripts Distribution (Kanji, Hiragana, Katakana, Other)")
             
         st.markdown("---")
         
+        # --- Row 2: JGRI, MTLD, TTR ---
         col3, col4, col5 = st.columns(3)
 
-        # Plot 3: JGRI Comparison (Structural Complexity) - Column 3
         with col3:
             if len(df_results) > 1:
                 jgri_plot_file = plot_jgri_comparison(df_results, filename="jgri_comparison.png")
@@ -574,19 +629,30 @@ if input_files:
             else:
                 st.info("JGRI comparison requires at least two files.")
 
-        # Plot 4: MTLD Comparison (Lexical Diversity) - Column 4
         with col4:
             mtld_plot_file = plot_mtld_comparison(df_results, filename="mtld_comparison.png")
             st.image(mtld_plot_file, caption="MTLD Comparison (Lexical Diversity Score)")
 
-        # Plot 5: Token Count Comparison (Simplex Bar Plot) - Column 5
         with col5:
-            token_count_plot_file = plot_token_count_comparison(df_results, filename="token_count_comparison.png")
-            st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
+            ttr_plot_file = plot_ttr_comparison(df_results, filename="ttr_comparison.png")
+            st.image(ttr_plot_file, caption="Type-Token Ratio (TTR) Comparison")
             
         st.markdown("---")
+        
+        # --- Row 3: POS and Tokens ---
+        col6, col7 = st.columns(2)
 
-        # Plot 6: Rolling Mean TTR Curve (Full width plot)
+        with col6:
+            pos_plot_file = plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png")
+            st.image(pos_plot_file, caption="Normalized POS Distribution (Top 10 Categories)")
+            
+        with col7:
+            token_count_plot_file = plot_token_count_comparison(df_results, filename="token_count_comparison.png")
+            st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
+        
+        st.markdown("---")
+
+        # --- Row 4: Rolling TTR Curve ---
         st.subheader("Rolling Mean TTR Curve")
         st.markdown("This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.")
         rolling_ttr_plot_file = plot_rolling_ttr_curve(corpus_data, filename="rolling_ttr_curve.png")
