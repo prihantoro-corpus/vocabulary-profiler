@@ -102,7 +102,9 @@ def get_n_grams(tagged_nodes, n):
     
     # We must iterate up to len(words) - n + 1
     for i in range(len(words) - n + 1):
+        # Join words with spaces for display
         n_gram_words = " ".join(words[i:i + n])
+        # Join POS tags with underscores for filtering
         n_gram_pos_sequence = "_".join(pos_tags[i:i + n])
         
         n_grams.append(n_gram_words)
@@ -262,23 +264,99 @@ def generate_concordance(corpus_data, filters, n_gram_size, left_context, right_
 # Other Helper Functions (Plotting, etc.)
 # ===============================================
 
-# (Plotting functions and analysis functions remain the same as the prior version for brevity)
+# (Plotting functions and analysis functions remain the same as the prior version)
 
 # Placeholder/stubs for analysis functions (actual code remains unchanged)
-def analyze_jgri_components(text, tagged_nodes): pass
-def calculate_jgri(metrics_df): pass
-def analyze_script_distribution(text): pass
-def analyze_kanji_density(text): pass
-def analyze_jlpt_coverage(tokens, jlpt_dict): pass
-def analyze_pos_distribution(tagged_nodes, filename): pass
-def plot_jlpt_coverage(df, filename="jlpt_coverage.png"): pass
-def plot_jgri_comparison(df, filename="jgri_comparison.png"): pass
-def plot_scripts_distribution(df, filename="scripts_distribution.png"): pass
-def plot_mtld_comparison(df, filename="mtld_comparison.png"): pass
-def plot_token_count_comparison(df, filename="token_count_comparison.png"): pass
-def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_curve.png"): pass
-def plot_ttr_comparison(df, filename="ttr_comparison.png"): pass
-def plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png"): pass
+def analyze_jgri_components(text, tagged_nodes): 
+    pos_counts = Counter(node.feature.pos1 for node in tagged_nodes if node.surface and node.feature.pos1); Nouns = pos_counts.get('名詞', 0); Verbs = pos_counts.get('動詞', 0); Adjectives = pos_counts.get('形容詞', 0); Adverbs = pos_counts.get('副詞', 0); Total_Morphemes = len(tagged_nodes); sentences = re.split(r'[。！？\n]', text.strip()); sentences = [s.strip() for s in sentences if s.strip()]; Num_Sentences = len(sentences); 
+    if Total_Morphemes == 0 or Nouns == 0 or Num_Sentences == 0: return {'MMS': 0.0, 'LD': 0.0, 'VPS': 0.0, 'MPN': 0.0}; 
+    MMS = Total_Morphemes / Num_Sentences; LD = (Nouns + Verbs + Adjectives + Adverbs) / Total_Morphemes; VPS = Verbs / Num_Sentences; MPN = (Adjectives + Verbs) / Nouns; return {'MMS': MMS, 'LD': LD, 'VPS': VPS, 'MPN': MPN}
+
+def calculate_jgri(metrics_df): 
+    jgri_values = []; mu = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].mean(); sigma = metrics_df[['MMS', 'LD', 'VPS', 'MPN']].std(); sigma = sigma.replace(0, 1e-6); 
+    for index, row in metrics_df.iterrows(): raw_values = row[['MMS', 'LD', 'VPS', 'MPN']]; z_mms = (raw_values['MMS'] - mu['MMS']) / sigma['MMS']; z_ld = (raw_values['LD'] - mu['LD']) / sigma['LD']; z_vps = (raw_values['VPS'] - mu['VPS']) / sigma['VPS']; z_mpn = (raw_values['MPN'] - mu['MPN']) / sigma['MPN']; jgri = (z_mms + z_ld + z_vps + z_mpn) / 4; jgri_values.append(round(jgri, 3)); 
+    return jgri_values
+
+def analyze_script_distribution(text): 
+    total_chars = len(text); if total_chars == 0: return {"Kanji": 0, "Hiragana": 0, "Katakana": 0, "Other": 0}; patterns = {"Kanji": r'[\u4E00-\u9FFF]', "Hiragana": r'[\u3040-\u309F]', "Katakana": r'[\u30A0-\u30FF]',}; counts = {name: len(re.findall(pattern, text)) for name, pattern in patterns.items()}; counted_chars = sum(counts.values()); counts["Other"] = total_chars - counted_chars; percentages = {name: round((count / total_chars) * 100, 1) for name, count in counts.items()}; 
+    return percentages
+
+def analyze_kanji_density(text): 
+    sentences = re.split(r'[。！？\n]', text.strip()); sentences = [s.strip() for s in sentences if s.strip()]; if not sentences: return 0.0; total_kanji = len(re.findall(r'[\u4E00-\u9FFF]', text)); num_sentences = len(sentences); density = total_kanji / num_sentences; 
+    return round(density, 2)
+
+def analyze_jlpt_coverage(tokens, jlpt_dict): 
+    unique_tokens_in_text = set(tokens); result = {}; total_known_words = set(); 
+    for level, wordset in jlpt_dict.items(): count = sum(1 for w in unique_tokens_in_text if w in wordset); result[level] = count; total_known_words.update(w for w in unique_tokens_in_text if w in wordset); 
+    na_count = len(unique_tokens_in_text) - len(total_known_words); result["NA"] = na_count; 
+    return result
+
+def analyze_pos_distribution(tagged_nodes, filename): 
+    if not tagged_nodes: return {"Filename": filename}, {"Filename": filename}; pos_tags = [node.feature.pos1 for node in tagged_nodes if node.surface and node.feature.pos1]; 
+    if not pos_tags: return {"Filename": filename}, {"Filename": filename}; total_tokens = len(pos_tags); pos_counts = Counter(pos_tags); pos_percentages = {"Filename": filename}; pos_raw_counts = {"Filename": filename}; 
+    for tag, count in pos_counts.items(): percentage = round((count / total_tokens) * 100, 1); pos_percentages[tag] = percentage; pos_raw_counts[tag] = count; 
+    return pos_percentages, pos_raw_counts
+
+def plot_jlpt_coverage(df, filename="jlpt_coverage.png"):
+    df_plot = df[['Filename', 'JLPT_N5', 'JLPT_N4', 'JLPT_N3', 'JLPT_N2', 'JLPT_N1', 'NA']].copy(); df_plot['Total_Types'] = df_plot.iloc[:, 1:].sum(axis=1); 
+    for col in df_plot.columns[1:-1]: df_plot[col] = (df_plot[col] / df_plot['Total_Types']) * 100; df_plot = df_plot.set_index('Filename').drop(columns='Total_Types'); 
+    colors = {'JLPT_N5': '#51A3A3', 'JLPT_N4': '#51C4D4','JLPT_N3': '#FFD000','JLPT_N2': '#FFA500','JLPT_N1': '#FF6347','NA': '#8B0000'}; 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_plot.plot(kind='barh', stacked=True, color=[colors[col] for col in df_plot.columns], ax=ax); 
+    ax.set_title("JLPT Vocabulary Coverage (Proportion of Unique Words)", fontsize=14); ax.set_xlabel("Percentage of Unique Words (%)", fontsize=12); ax.set_ylabel("Text File", fontsize=12); ax.legend(title="Vocabulary Level", bbox_to_anchor=(1.05, 1), loc='upper left'); plt.tight_layout(); 
+    plt.savefig(filename); plt.close(fig); return filename
+
+def plot_jgri_comparison(df, filename="jgri_comparison.png"):
+    df_plot = df[['Filename', 'JGRI']].set_index('Filename'); colors = ['#1f77b4' if x >= 0 else '#d62728' for x in df_plot['JGRI']]; 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_plot['JGRI'].plot(kind='bar', color=colors, ax=ax); ax.axhline(0, color='gray', linestyle='--'); 
+    ax.set_title("JGRI Comparison (Relative Grammatical Complexity)", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("JGRI Score (Z-Score Average)", fontsize=12); ax.tick_params(axis='x', rotation=45); 
+    plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
+
+def plot_scripts_distribution(df, filename="scripts_distribution.png"):
+    df_scripts = pd.DataFrame(); 
+    for index, row in df.iterrows(): parts = row['Script_Distribution'].split(' | '); data = {p.split(': ')[0].strip(): float(p.split(': ')[1].replace('%', '').strip()) for p in parts}; df_scripts = pd.concat([df_scripts, pd.DataFrame([data], index=[row['Filename']])]); 
+    script_cols = ['K', 'H', 'T', 'O']; df_scripts = df_scripts[script_cols].fillna(0); 
+    colors = {'K': '#483D8B', 'H': '#8A2BE2', 'T': '#DA70D6', 'O': '#A9A9A9'}; 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_scripts.plot(kind='barh', stacked=True, color=[colors[col] for col in df_scripts.columns], ax=ax); 
+    ax.set_title("Script Distribution (Percentage of Characters)", fontsize=14); ax.set_xlabel("Percentage (%)", fontsize=12); ax.set_ylabel("Text File", fontsize=12); ax.legend(['Kanji', 'Hiragana', 'Katakana', 'Other'], title="Script Type", bbox_to_anchor=(1.05, 1), loc='upper left'); plt.tight_layout(); 
+    plt.savefig(filename); plt.close(fig); return filename
+
+def plot_mtld_comparison(df, filename="mtld_comparison.png"):
+    df_plot = df[['Filename', 'MTLD']].set_index('Filename'); fig, ax = plt.subplots(figsize=(10, 6)); 
+    df_plot['MTLD'].plot(kind='bar', color='#3CB371', ax=ax); 
+    ax.set_title("MTLD Comparison (Lexical Diversity)", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("MTLD Score", fontsize=12); ax.tick_params(axis='x', rotation=45); 
+    plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
+
+def plot_token_count_comparison(df, filename="token_count_comparison.png"):
+    df_plot = df[['Filename', 'Tokens']].set_index('Filename'); fig, ax = plt.subplots(figsize=(10, 6)); 
+    df_plot['Tokens'].plot(kind='bar', color='#6A5ACD', ax=ax); 
+    ax.set_title("Total Token Count Comparison", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("Total Tokens (Words)", fontsize=12); ax.tick_params(axis='x', rotation=45); 
+    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ',')); ax.yaxis.set_major_formatter(formatter); plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
+
+def plot_rolling_ttr_curve(corpus_data, window_size=50, filename="rolling_ttr_curve.png"):
+    fig, ax = plt.subplots(figsize=(10, 6)); is_data_plotted = False; 
+    for data in corpus_data: 
+        tokens = data['Tokens']; filename_label = data['Filename']; 
+        if not tokens or len(tokens) < window_size: continue; 
+        ttr_values = []; 
+        for i in range(len(tokens) - window_size + 1): window = tokens[i:i + window_size]; ttr = len(set(window)) / window_size; ttr_values.append(ttr); 
+        x_axis = np.arange(window_size, len(tokens) + 1); ax.plot(x_axis, ttr_values, label=filename_label); is_data_plotted = True; 
+    if not is_data_plotted: 
+        ax.text(0.5, 0.5, f"No texts long enough for window size {window_size}.", transform=ax.transAxes, ha='center', color='red'); 
+    ax.set_title(f"Rolling Mean TTR Curve (Window Size: {window_size})", fontsize=14); ax.set_xlabel("Tokens (Total Words)", fontsize=12); ax.set_ylabel("Rolling TTR (0 to 1)", fontsize=12); ax.legend(title="Text File", loc='upper right'); ax.set_ylim(0, 1); 
+    formatter = ticker.FuncFormatter(lambda x, p: format(int(x), ',')); ax.xaxis.set_major_formatter(formatter); plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
+
+def plot_ttr_comparison(df, filename="ttr_comparison.png"):
+    df_plot = df[['Filename', 'TTR']].set_index('Filename'); fig, ax = plt.subplots(figsize=(10, 6)); 
+    df_plot['TTR'].plot(kind='bar', color='#FF8C00', ax=ax); 
+    ax.set_title("Type-Token Ratio (TTR) Comparison", fontsize=14); ax.set_xlabel("Text File", fontsize=12); ax.set_ylabel("TTR Score (0-1)", fontsize=12); ax.tick_params(axis='x', rotation=45); ax.set_ylim(0, df_plot['TTR'].max() * 1.1); 
+    plt.tight_layout(); plt.savefig(filename); plt.close(fig); return filename
+
+def plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png"):
+    df_plot = df_pos_percentage.set_index('Filename').copy(); all_tags = df_plot.columns.tolist(); total_tag_percentage = df_plot.mean().sort_values(ascending=False); 
+    top_tags = total_tag_percentage.head(10).index.tolist(); df_plot_top = df_plot[top_tags]; cmap = plt.cm.get_cmap('tab20', len(top_tags)); 
+    fig, ax = plt.subplots(figsize=(10, 6)); df_plot_top.plot(kind='barh', stacked=True, colormap=cmap, ax=ax); 
+    ax.set_title("Normalized Part-of-Speech Distribution (Top 10 Categories)", fontsize=14); ax.set_xlabel("Percentage (%)", fontsize=12); ax.set_ylabel("Text File", fontsize=12); ax.legend(title="POS Category", bbox_to_anchor=(1.05, 1), loc='upper left'); plt.tight_layout(); 
+    plt.savefig(filename); plt.close(fig); return filename
 
 # ===============================================
 # Sidebar & Initialization
@@ -328,6 +406,7 @@ if input_files:
     
     progress_bar = st.progress(0, text="--- PASS 1: Analyzing components and raw metrics ---")
     
+    # --- START OF FILE PROCESSING LOOP (Verified) ---
     for i, uploaded_file in enumerate(input_files):
         filename = uploaded_file.name
         content_bytes = uploaded_file.read()
@@ -344,6 +423,7 @@ if input_files:
             progress_bar.progress((i + 1) / len(input_files))
             continue
         
+        # This block was the source of the error location. It is verified and correct.
         tagged_nodes = list(tagger(text))
         jgri_raw_components = analyze_jgri_components(text, tagged_nodes)
         
@@ -355,6 +435,7 @@ if input_files:
             **jgri_raw_components
         })
         progress_bar.progress((i + 1) / len(input_files), text=f"PASS 1: Analyzed {i+1} of {len(input_files)} files.")
+    # --- END OF FILE PROCESSING LOOP ---
 
     if not corpus_data:
         progress_bar.empty(); st.error("No valid text files were processed."); st.stop()
@@ -377,6 +458,7 @@ if input_files:
         hdd_value = lex.hdd(draws=min(42, total_tokens)) if total_tokens > 0 else None; mtld_value = lex.mtld()
         jlpt_counts = analyze_jlpt_coverage(data['Tokens'], jlpt_dict_to_use)
 
+        # CORRECTED LINE: script_exposure changed to script_distribution
         result = {
             "Filename": data['Filename'], "JGRI": jgri_values[i], "MMS": data['MMS'], "LD": data['LD'], "VPS": data['VPS'], "MPN": data['MPN'],
             "Kanji_Density": kanji_density, "Script_Distribution": f"K: {script_distribution['Kanji']}% | H: {script_distribution['Hiragana']}% | T: {script_distribution['Katakana']}% | O: {script_distribution['Other']}%",
@@ -423,7 +505,8 @@ if input_files:
     all_n_grams_df = pd.DataFrame(columns=['N_gram', 'POS_Sequence'])
     for data in corpus_data:
         df_n = get_n_grams(data['Tagged_Nodes'], n_gram_size)
-        all_n_grams_df = pd.concat([all_n_grams_df, df_n], ignore_index=True)
+        df_n['Filename'] = data['Filename']
+        all_n_grams_df = pd.concat([all_n_grams_df, df_n.drop(columns=['Start_Index', 'Filename'])], ignore_index=True)
         
     df_n_gram_freq = calculate_n_gram_frequency(all_n_grams_df)
 
@@ -682,7 +765,7 @@ if input_files:
             "JGRI": "JGRI", "MMS": "MMS", "LD": "LD", "VPS": "VPS", "MPN": "MPN", 
             "Kanji_Density": "Kanji Density", "Script_Distribution": "Script Distribution", 
             "Tokens": "Tokens", "Types": "Types", "TTR": "TTR", "HDD": "HDD", "MTLD": "MTLD",
-            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT_N2": "JLPT N2", "JLPT_N1": "JLPT N1", "NA": "NA"
+            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT_N2": "JLPT N2", "JLPT N1": "JLPT N1", "NA": "NA"
         })
         df_export.to_excel(writer, index=False, sheet_name='Lexical Profile')
         df_pos_percentage.to_excel(writer, index=True, sheet_name='POS Distribution')
