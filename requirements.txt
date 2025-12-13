@@ -1,6 +1,7 @@
-streamlit>=1.26.0    # Fixes the @st.cache_data error
-pandas               # Data handling
-openpyxl             # Reads and writes .xlsx files
-fugashi              # Japanese tokenizer
-lexicalrichness      # Lexical metrics (TTR, HDD, MTLD)
-unidic-lite          # CRITICAL: Provides the dictionary, resolving the MeCab initialization error
+streamlit>=1.26.0
+pandas
+openpyxl             # Required for reading Excel files
+xlsxwriter           # CRITICAL FIX: Required by Pandas for writing Excel files using this engine
+fugashi
+lexicalrichness
+unidic-lite
