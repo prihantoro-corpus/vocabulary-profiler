@@ -230,7 +230,12 @@ tagger = initialize_tokenizer()
 if jlpt_dict_to_use is None or tagger is None:
     st.stop() 
 
-# --- Sidebar Configuration (Upload files here) ---
+# --- Sidebar Configuration: DOC LINK AT TOP ---
+st.sidebar.markdown(
+    "**Documentation:** [User Guide and Results Interpretation](https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing)"
+)
+st.sidebar.markdown("---")
+
 st.sidebar.header("1. Upload Raw Text Files")
 
 input_files = st.sidebar.file_uploader(
@@ -243,13 +248,6 @@ input_files = st.sidebar.file_uploader(
 
 st.sidebar.header("2. Word List Used")
 st.sidebar.info(f"Using the pre-loaded **Unknown Source** list ({len(ALL_JLPT_LEVELS)} levels).")
-
-# NEW: Documentation Link added to the sidebar
-st.sidebar.markdown("---")
-st.sidebar.markdown(
-    "**Documentation:** [User Guide and Results Interpretation](https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing)"
-)
-st.sidebar.markdown("---")
 
 # ===============================================
 # Main Area: Process and Display
@@ -375,12 +373,12 @@ if input_files:
     column_configuration = {
         "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
         "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
-        "MMS": st.column_config.NumberColumn("MMS", format="%.2f", help="Mean Morphemes per Sentence. Raw value for sentence length."),
+        "MMS": st.column_config.NumberColumn("MMS", format="%.2f", help="Mean Morphemes per Sentence. Raw value for sentence length/integration cost."),
         "LD": st.column_config.NumberColumn("LD", format="%.3f", help="Lexical Density (Content Words / Total Morphemes). Raw value for information load."),
-        "VPS": st.column_config.NumberColumn("VPS", format="%.2f", help="Verbs per Sentence. Raw value for clause load."),
+        "VPS": st.column_config.NumberColumn("VPS", format="%.2f", help="Verbs per Sentence. Raw value for clause load and structural density."),
         "MPN": st.column_config.NumberColumn("MPN", format="%.2f", help="Modifiers per Noun. Raw value for Noun Phrase complexity."),
         "Kanji_Density": st.column_config.NumberColumn("Kanji Density", format="%.2f", help="Average number of Kanji characters per sentence."),
-        "Script_Distribution": st.column_config.TextColumn("Script Distribution", help="Percentage breakdown: K=Kanji, H=Hiragana, T=Katakana, O=Other."),
+        "Script_Distribution": st.column_config.TextColumn("Script Distribution", help="Percentage breakdown of character types: K=Kanji, H=Hiragana, T=Katakana, O=Other."),
         "Tokens": st.column_config.NumberColumn("Tokens", help="Total count of all morphemes/words (N).", width="small"),
         "Types": st.column_config.NumberColumn("Types", help="Total count of unique morphemes/words (V).", width="small"),
         "TTR": st.column_config.NumberColumn("TTR", format="%.3f", help="Type-Token Ratio (V/N). Vocabulary diversity, highly sensitive to length.", width="small"),
@@ -426,7 +424,7 @@ if input_files:
     st.dataframe(df_interpretation.set_index('JGRI Value'), use_container_width=True)
     
     st.markdown("---")
-
+    
     # Filter columns to ensure consistent order (including all components)
     sorted_columns = ["Filename", "JGRI", "MMS", "LD", "VPS", "MPN", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
     for level in ALL_OUTPUT_LEVELS:
