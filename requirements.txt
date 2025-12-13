@@ -1,6 +1,8 @@
 streamlit
+ipadic
+streamlit>=1.26.0  # Force a modern version
 pandas
 openpyxl
 fugashi
 lexicalrichness
-ipadic
+unidic-lite
