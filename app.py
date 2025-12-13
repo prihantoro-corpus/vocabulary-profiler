@@ -22,7 +22,6 @@ except ImportError:
     st.stop()
 
 try:
-    # We rely on unidic-lite being in requirements.txt to fix the MeCab error
     from fugashi import Tagger
 except ImportError:
     st.error("The 'fugashi' package is missing.")
@@ -43,7 +42,10 @@ st.markdown("Analyze lexical richness (TTR, HDD, MTLD) and **JLPT word coverage*
 
 @st.cache_data(show_spinner="Loading and processing JLPT Wordlist...")
 def load_jlpt_wordlist_from_file(filename):
-    """Loads the JLPT wordlist from the selected file bundled in the repository."""
+    """
+    Loads the JLPT wordlist from the selected file.
+    It searches for a column named 'Level' (case-insensitive) in each sheet.
+    """
     
     if not os.path.exists(filename):
         st.error(f"Required file '{filename}' not found. Please ensure it is uploaded to the GitHub repo.")
@@ -52,22 +54,39 @@ def load_jlpt_wordlist_from_file(filename):
     try:
         jlpt_dict = {}
         xls = pd.ExcelFile(filename)
+        
         for level in ALL_JLPT_LEVELS:
-            # Check for exact sheet name match as this was an issue
             if level not in xls.sheet_names:
                  st.error(f"Error: Sheet '{level}' not found in the selected file.")
                  return None
-                 
-            # Assuming column name = sheet name
-            words = set(xls.parse(level)[level].dropna().astype(str).tolist())
+            
+            # Read the sheet
+            df = xls.parse(level)
+            
+            # --- REVISED LOGIC: Find the 'Level' column ---
+            word_column = None
+            
+            # Search for 'level' header, case-insensitive
+            for col in df.columns:
+                if isinstance(col, str) and col.strip().lower() == 'level':
+                    word_column = col
+                    break
+            
+            if word_column is None:
+                st.error(f"Error in sheet '{level}': Could not find a column header named 'Level' (case-insensitive).")
+                return None
+            # ---------------------------------------------
+
+            # Extract words from the identified column
+            words = set(df[word_column].dropna().astype(str).tolist())
             jlpt_dict[level] = words
+        
         st.success(f"Wordlist '{filename}' loaded successfully!")
         return jlpt_dict
-    except KeyError as e:
-        st.error(f"Error: Missing expected column '{e}' in one of the sheets. Check the file structure.")
-        return None
+        
     except Exception as e:
         st.error(f"Error loading JLPT Wordlist from file: {e}")
+        st.stop()
         return None
 
 @st.cache_resource(show_spinner="Initializing Fugashi Tokenizer...")
@@ -78,7 +97,9 @@ def initialize_tokenizer():
         st.success("Fugashi tokenizer loaded successfully!")
         return tagger
     except Exception as e:
+        # This error is usually fixed by unidic-lite in requirements.txt
         st.error(f"Error loading Fugashi: {e}")
+        st.error("Please ensure 'unidic-lite' is in your requirements.txt to fix MeCab initialization.")
         return None
 
 # ===============================================
@@ -94,11 +115,11 @@ def analyze_jlpt_coverage(words, jlpt_dict):
     return result
 
 # ===============================================
-# Sidebar Configuration (Preserved)
+# Sidebar Configuration
 # ===============================================
 st.sidebar.header("⚙️ Configuration")
 
-# 1. Wordlist Selection (PRESERVED)
+# 1. Wordlist Selection
 selected_wordlist_filename = st.sidebar.selectbox(
     "1. Select JLPT Word List Source:",
     options=AVAILABLE_WORDLISTS,
@@ -171,7 +192,6 @@ if input_files:
             pass
 
         # --- JLPT coverage ---
-        # Analyze using the full dictionary (N5 to N1)
         jlpt_counts = analyze_jlpt_coverage(tokens, jlpt_dict_to_use)
 
         # --- Compile Result ---
