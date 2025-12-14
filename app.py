@@ -7,6 +7,7 @@ from collections import Counter
 import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.ticker as ticker 
+import requests # Need requests to fetch external files
 
 # ===============================================
 # --- 0. MULTILINGUAL CONFIGURATION ---
@@ -20,13 +21,17 @@ TRANSLATIONS = {
         'MANUAL_LINK': "https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing",
         'MANUAL_TEXT': "User Guide and Results Interpretation",
         # Sidebar Upload
-        'UPLOAD_HEADER': "1. Upload Text Sources",
-        'UPLOAD_INDIVIDUAL': "A. Upload Individual TXT Files",
-        'UPLOAD_BATCH': "B. Upload Batch Excel/CSV File",
+        'UPLOAD_HEADER': "1. Load Corpus Source", # Changed header text
+        'SOURCE_SELECT': "Select Corpus Source:", # New radio label
+        'SOURCE_UPLOAD': "A. Upload Local Files", # New radio option
+        'SOURCE_PRELOAD_1': "B. Preloaded: DICO-JALF ALL", # New radio option
+        'SOURCE_PRELOAD_2': "C. Preloaded: DICO-JALF 30 Files", # New radio option
+        'UPLOAD_INDIVIDUAL': "Upload Individual TXT Files",
+        'UPLOAD_BATCH': "Upload Batch Excel/CSV File",
         'UPLOAD_HELPER': "The files will be analyzed against the single pre-loaded JLPT word list.",
         'UPLOAD_BUTTON': "Upload one or more **.txt** files for analysis.",
         'EXCEL_BUTTON': "Upload **Excel (.xlsx) / CSV (.csv)** for Batch Processing",
-        'EXCEL_NOTE': "Sheet 1/Content must contain: Column 1: Text File Name, Column 2: Content.",
+        'EXCEL_NOTE': "Sheet 1/Content must contain: Column 1: Text File Name, Column 2: Content (No header).",
         'WORDLIST_HEADER': "2. Word List Used",
         'WORDLIST_INFO': "Using the pre-loaded **Unknown Source** list",
         'NGRAM_HEADER': "3. N-gram Settings",
@@ -47,7 +52,8 @@ TRANSLATIONS = {
         'NO_FILES': "No valid text files were processed.",
         'EMPTY_FILE': "is empty, skipped.",
         'DECODE_ERROR': "Failed to decode",
-        'UPLD_TO_BEGIN': "Please upload your Japanese text files (.txt) or Excel/CSV batch using the **sidebar**.",
+        'UPLD_TO_BEGIN': "Please select a corpus source from the **sidebar** to begin analysis.",
+        'FETCHING_CORPUS': "Fetching and processing preloaded corpus...", # New message
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. N-gram Frequency Analysis & Concordance",
@@ -87,13 +93,17 @@ TRANSLATIONS = {
         'MANUAL_LINK': "https://docs.google.com/document/d/1SvfMQjsTm8uLI0PTwSOL1lTEiLhVUFArb6Q0lRHSiZU/edit?usp=sharing",
         'MANUAL_TEXT': "Panduan Pengguna dan Interpretasi Hasil",
         # Sidebar Upload
-        'UPLOAD_HEADER': "1. Unggah Sumber Teks",
-        'UPLOAD_INDIVIDUAL': "A. Unggah Berkas TXT Individual",
-        'UPLOAD_BATCH': "B. Unggah Berkas Excel/CSV Batch",
+        'UPLOAD_HEADER': "1. Sumber Korpus",
+        'SOURCE_SELECT': "Pilih Sumber Korpus:",
+        'SOURCE_UPLOAD': "A. Unggah Berkas Lokal",
+        'SOURCE_PRELOAD_1': "B. Pra-muat: DICO-JALF SEMUA",
+        'SOURCE_PRELOAD_2': "C. Pra-muat: DICO-JALF 30 Berkas",
+        'UPLOAD_INDIVIDUAL': "Unggah Berkas TXT Individual",
+        'UPLOAD_BATCH': "Unggah Berkas Excel/CSV Batch",
         'UPLOAD_HELPER': "Berkas akan dianalisis terhadap daftar kata JLPT yang dimuat sebelumnya.",
         'UPLOAD_BUTTON': "Unggah satu atau lebih berkas **.txt** untuk analisis.",
         'EXCEL_BUTTON': "Unggah **Excel (.xlsx) / CSV (.csv)** untuk Pemrosesan Batch",
-        'EXCEL_NOTE': "Sheet 1/Content harus berisi: Kolom 1: Nama Berkas Teks, Kolom 2: Konten.",
+        'EXCEL_NOTE': "Sheet 1/Konten harus berisi: Kolom 1: Nama Berkas Teks, Kolom 2: Konten (Tanpa header).",
         'WORDLIST_HEADER': "2. Daftar Kata yang Digunakan",
         'WORDLIST_INFO': "Menggunakan daftar **Sumber Tidak Diketahui** yang dimuat sebelumnya",
         'NGRAM_HEADER': "3. Pengaturan N-gram",
@@ -110,11 +120,12 @@ TRANSLATIONS = {
         'PASS2_TEXT': "--- LANGKAH 2: Menghitung JGRI dan hasil akhir ---",
         'SUCCESS_LOAD': "Daftar Kata JLPT berhasil dimuat dari CSV!",
         'SUCCESS_TOKEN': "Tokenizer Fugashi berhasil dimuat!",
-        'ANALYSIS_COMPLETE': "Analisis selesai!",
+        'ANALISIS_COMPLETE': "Analisis selesai!",
         'NO_FILES': "Tidak ada berkas teks yang valid diproses.",
         'EMPTY_FILE': "kosong, dilewati.",
         'DECODE_ERROR': "Gagal mendekode",
-        'UPLD_TO_BEGIN': "Mohon unggah berkas teks Jepang Anda (.txt) atau Excel/CSV batch menggunakan **sidebar**.",
+        'UPLD_TO_BEGIN': "Mohon pilih sumber korpus dari **sidebar** untuk memulai analisis.",
+        'FETCHING_CORPUS': "Mengambil dan memproses korpus pra-muat...",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. Analisis Frekuensi N-gram & Konkordansi",
@@ -154,13 +165,17 @@ TRANSLATIONS = {
         'MANUAL_LINK': "https://docs.google.com/document/d/1tJB4lDKBUPBHHHB8Vj0fZyXtwH-lNDeF9tifDS7lzFQ/edit?usp=sharing",
         'MANUAL_TEXT': "ユーザーガイドと結果の解釈",
         # Sidebar Upload
-        'UPLOAD_HEADER': "1. テキストソースのアップロード",
-        'UPLOAD_INDIVIDUAL': "A. 個別TXTファイルのアップロード",
-        'UPLOAD_BATCH': "B. Excel/CSVバッチファイルのアップロード",
+        'UPLOAD_HEADER': "1. コーパスソースのロード",
+        'SOURCE_SELECT': "コーパスソースを選択:",
+        'SOURCE_UPLOAD': "A. ローカルファイルをアップロード",
+        'SOURCE_PRELOAD_1': "B. 事前ロード: DICO-JALF すべて",
+        'SOURCE_PRELOAD_2': "C. 事前ロード: DICO-JALF 30ファイルのみ",
+        'UPLOAD_INDIVIDUAL': "個別TXTファイルのアップロード",
+        'UPLOAD_BATCH': "Excel/CSVバッチファイルのアップロード",
         'UPLOAD_HELPER': "ファイルは事前にロードされたJLPT単語リストに対して分析されます。",
         'UPLOAD_BUTTON': "分析用の** .txt **ファイルを1つ以上アップロードしてください。",
         'EXCEL_BUTTON': "バッチ処理用の** Excel (.xlsx) / CSV (.csv) **をアップロード",
-        'EXCEL_NOTE': "シート1/コンテンツには、列1: テキストファイル名、列2: コンテンツが必要です。",
+        'EXCEL_NOTE': "シート1/コンテンツには、列1: テキストファイル名、列2: コンテンツが必要です（ヘッダーなし）。",
         'WORDLIST_HEADER': "2. 使用される単語リスト",
         'WORDLIST_INFO': "事前ロードされた**不明なソース**リストを使用しています",
         'NGRAM_HEADER': "3. N-gram設定",
@@ -181,7 +196,8 @@ TRANSLATIONS = {
         'NO_FILES': "有効なテキストファイルは処理されませんでした。",
         'EMPTY_FILE': "は空です。スキップされました。",
         'DECODE_ERROR': "デコードに失敗しました",
-        'UPLD_TO_BEGIN': "サイドバーを使用して日本語テキストファイル(.txt)またはExcel/CSVバッチをアップロードしてください。",
+        'UPLD_TO_BEGIN': "サイドバーからコーパスソースを選択して分析を開始してください。",
+        'FETCHING_CORPUS': "事前ロードされたコーパスを取得および処理しています...",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. N-gram頻度分析とコンコーダンス",
@@ -214,6 +230,15 @@ TRANSLATIONS = {
         'RAW_JGRI_NOTE': "このテーブルは、JGRIインデックスの計算に使用された元の生値を提供します。これらの値はメインテーブルにも含まれています。",
         'DOWNLOAD_ALL': "⬇️ すべての結果をExcelとしてダウンロード（N-gramデータを含む）",
     },
+}
+
+# ===============================================
+# --- PRELOADED CORORPA CONFIGURATION ---
+# ===============================================
+
+PRELOADED_CORPORA = {
+    "DICO-JALF ALL": "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%20all.xlsx",
+    "DICO-JALF 30 Files Only": "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%2030%20files%20only.xlsx",
 }
 
 # ===============================================
@@ -302,36 +327,48 @@ def initialize_tokenizer(T):
         return None
 
 # ===============================================
-# New Helper Function: Process Excel Batch Upload
+# New Helper Functions: File Handling
 # ===============================================
 
-def process_excel_upload(uploaded_excel):
+# Helper class to combine Excel/CSV output with Streamlit's UploadedFile objects
+class MockUploadedFile:
+    """Mock file object for preloaded or processed batch data."""
+    def __init__(self, name, data_io):
+        self.name = name
+        self._data_io = data_io
+    def read(self):
+        # Reset pointer before reading to ensure full content is captured
+        self._data_io.seek(0)
+        return self._data_io.read()
+
+
+def process_excel_upload(uploaded_file):
     """
-    Reads a file (Excel or CSV) assuming Column 1=Filename, Column 2=Content
-    and converts rows into a list of tuples (filename, data_io).
+    Reads a file (Excel or CSV) assuming Column 1=Filename, Column 2=Content (no header).
+    Returns a list of (filename, data_io) tuples.
     """
     processed_files = []
-    if uploaded_excel is None:
+    if uploaded_file is None:
         return processed_files
 
-    file_extension = uploaded_excel.name.split('.')[-1].lower()
+    file_extension = uploaded_file.name.split('.')[-1].lower()
     
     try:
+        # Read the uploaded file's content
+        uploaded_file.seek(0)
+        
         if file_extension == 'xlsx':
-            # Use pd.read_excel for actual Excel files
-            df = pd.read_excel(uploaded_excel, header=None, sheet_name=0)
+            df = pd.read_excel(uploaded_file, header=None, sheet_name=0)
         elif file_extension == 'csv':
-            # Use pd.read_csv for CSV files, assuming no header (like the user's data)
-            # The file is passed via BytesIO, so we must read the raw content first.
-            uploaded_excel.seek(0)
-            data = uploaded_excel.read()
+            # Use io.BytesIO to read the CSV content safely
+            data = uploaded_file.read()
             df = pd.read_csv(io.BytesIO(data), header=None)
         else:
             st.sidebar.warning(f"Unsupported file type for batch upload: .{file_extension}")
             return processed_files
         
         if df.empty or df.shape[1] < 2:
-            st.sidebar.warning(f"File '{uploaded_excel.name}' is empty or does not contain required columns (1 and 2).")
+            st.sidebar.warning(f"File '{uploaded_file.name}' is empty or does not contain required columns (1 and 2).")
             return processed_files
 
         # Columns 0 and 1 correspond to the first two columns (Filename and Content)
@@ -343,32 +380,68 @@ def process_excel_upload(uploaded_excel):
             filename = row.iloc[0]
             content = row.iloc[1]
             
-            # Skip rows where content or filename is essentially empty
             if filename == 'nan' or content == 'nan' or not filename or not content:
                 continue 
 
-            # Create a tuple (filename, BytesIO content)
-            processed_files.append(
-                (filename, io.BytesIO(content.encode('utf-8')))
-            )
+            processed_files.append((filename, io.BytesIO(content.encode('utf-8'))))
         
         if processed_files:
             st.sidebar.success(f"Successfully loaded {len(processed_files)} texts from batch file.")
         return processed_files
 
     except Exception as e:
-        st.sidebar.error(f"Error reading batch file: {e}")
+        st.sidebar.error(f"Error reading batch file: {e}. Please ensure it is correctly formatted with no header.")
         return []
 
-# Helper class to combine Excel/CSV output with Streamlit's UploadedFile objects
-class MockUploadedFile:
-    def __init__(self, name, data_io):
-        self.name = name
-        self._data_io = data_io
-    def read(self):
-        # Reset pointer before reading to ensure full content is captured
-        self._data_io.seek(0)
-        return self._data_io.read()
+@st.cache_data(show_spinner=T['FETCHING_CORPUS'])
+def load_preloaded_corpus(url, name):
+    """
+    Fetches an Excel file directly from a URL, processes it, and returns
+    a list of MockUploadedFile objects.
+    """
+    try:
+        # 1. Fetch the data
+        response = requests.get(url, allow_redirects=True)
+        response.raise_for_status() # Raises an HTTPError if the status is 4xx or 5xx
+
+        # 2. Read the Excel content directly from the byte stream
+        data_io = io.BytesIO(response.content)
+        df = pd.read_excel(data_io, header=None, sheet_name=0)
+
+        # 3. Process the DataFrame (same logic as excel upload)
+        if df.empty or df.shape[1] < 2:
+            st.error(f"Preloaded corpus '{name}' is empty or misformatted.")
+            return []
+
+        df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
+        df.iloc[:, 1] = df.iloc[:, 1].astype(str).str.strip()
+        df = df.dropna(subset=[0, 1])
+        
+        mock_files = []
+        for index, row in df.iterrows():
+            filename = row.iloc[0]
+            content = row.iloc[1]
+            if filename == 'nan' or content == 'nan' or not filename or not content:
+                continue 
+                
+            mock_files.append(
+                MockUploadedFile(filename, io.BytesIO(content.encode('utf-8')))
+            )
+        
+        if not mock_files:
+            st.error(f"Preloaded corpus '{name}' contains no valid text entries.")
+            return []
+            
+        st.success(f"Successfully loaded {len(mock_files)} texts from preloaded corpus: {name}.")
+        return mock_files
+
+    except requests.exceptions.HTTPError as err:
+        st.error(f"Error fetching preloaded corpus '{name}': HTTP error {err.response.status_code}. Please check the URL.")
+        return []
+    except Exception as e:
+        st.error(f"Error processing preloaded corpus '{name}': {e}")
+        return []
+
 
 # ===============================================
 # Core N-gram and KWIC Analysis
@@ -813,41 +886,64 @@ st.sidebar.markdown("---")
 
 st.sidebar.header(T['UPLOAD_HEADER'])
 
-# --- A. Upload Individual TXT Files ---
-st.sidebar.markdown(f"**{T['UPLOAD_INDIVIDUAL']}**")
-input_files_txt = st.sidebar.file_uploader(
-    T['UPLOAD_BUTTON'],
-    type=["txt"],
-    accept_multiple_files=True,
-    key="input_uploader_txt",
-    help=T['UPLOAD_HELPER']
-)
-st.sidebar.markdown("---")
-
-# --- B. Upload Batch Excel/CSV File ---
-st.sidebar.markdown(f"**{T['UPLOAD_BATCH']}**")
-input_files_excel = st.sidebar.file_uploader(
-    T['EXCEL_BUTTON'],
-    type=["xlsx", "csv"], # Accept both XLSX and CSV
-    key="input_uploader_excel",
-    help=T['EXCEL_NOTE']
+# --- Source Selection Radio ---
+source_selection = st.sidebar.radio(
+    T['SOURCE_SELECT'],
+    options=[
+        T['SOURCE_UPLOAD'], 
+        T['SOURCE_PRELOAD_1'], 
+        T['SOURCE_PRELOAD_2']
+    ],
+    key='source_selection_radio'
 )
 
-# Process Excel batch immediately if uploaded
-processed_excel_files = process_excel_upload(input_files_excel)
-
-# Combine uploaded files into a single list for processing
 uploaded_files_combined = []
-if input_files_txt:
-    # Standard Streamlit UploadedFile objects
-    uploaded_files_combined.extend(input_files_txt)
 
-if processed_excel_files:
-    # Convert processed (filename, BytesIO) tuples into MockUploadedFile objects
-    for filename, data_io in processed_excel_files:
-        uploaded_files_combined.append(MockUploadedFile(filename, data_io))
+if source_selection == T['SOURCE_UPLOAD']:
+    # --- A. Upload Individual TXT Files ---
+    st.sidebar.markdown(f"**{T['UPLOAD_INDIVIDUAL']}**")
+    input_files_txt = st.sidebar.file_uploader(
+        T['UPLOAD_BUTTON'],
+        type=["txt"],
+        accept_multiple_files=True,
+        key="input_uploader_txt",
+        help=T['UPLOAD_HELPER']
+    )
+    st.sidebar.markdown("---")
 
+    # --- B. Upload Batch Excel/CSV File ---
+    st.sidebar.markdown(f"**{T['UPLOAD_BATCH']}**")
+    input_files_excel = st.sidebar.file_uploader(
+        T['EXCEL_BUTTON'],
+        type=["xlsx", "csv"], # Accept both XLSX and CSV
+        key="input_uploader_excel",
+        help=T['EXCEL_NOTE']
+    )
 
+    # Process local uploads
+    if input_files_txt:
+        uploaded_files_combined.extend(input_files_txt)
+        
+    if input_files_excel:
+        processed_excel_files = process_excel_upload(input_files_excel)
+        for filename, data_io in processed_excel_files:
+            uploaded_files_combined.append(MockUploadedFile(filename, data_io))
+            
+elif source_selection == T['SOURCE_PRELOAD_1']:
+    # Load DICO-JALF ALL
+    url = PRELOADED_CORPORA["DICO-JALF ALL"]
+    name = "DICO-JALF ALL"
+    preloaded_files = load_preloaded_corpus(url, name)
+    uploaded_files_combined.extend(preloaded_files)
+    
+elif source_selection == T['SOURCE_PRELOAD_2']:
+    # Load DICO-JALF 30 Files Only
+    url = PRELOADED_CORPORA["DICO-JALF 30 Files Only"]
+    name = "DICO-JALF 30 Files Only"
+    preloaded_files = load_preloaded_corpus(url, name)
+    uploaded_files_combined.extend(preloaded_files)
+    
+st.sidebar.markdown("---")
 st.sidebar.header(T['WORDLIST_HEADER'])
 st.sidebar.info(f"{T['WORDLIST_INFO']} ({len(ALL_JLPT_LEVELS)} levels).")
 
@@ -869,7 +965,7 @@ if uploaded_files_combined:
     
     progress_bar = st.progress(0, text=T['PASS1_TEXT'])
     
-    # --- START OF FILE PROCESSING LOOP (Handles both TXT and Excel/Mock files) ---
+    # --- START OF FILE PROCESSING LOOP (Handles all file sources) ---
     for i, uploaded_file in enumerate(uploaded_files_combined):
         filename = uploaded_file.name
         
