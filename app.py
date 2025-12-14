@@ -9,8 +9,33 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker 
 import requests # Need requests to fetch external files
 
+# NEW IMPORTS for Word Cloud
+try:
+    from wordcloud import WordCloud
+except ImportError:
+    st.error("The 'wordcloud' package is missing. Please check requirements.txt.")
+    st.stop()
+try:
+    from PIL import Image
+except ImportError:
+    st.error("The 'Pillow' package is missing. Please check requirements.txt.")
+    st.stop()
+    
+# --- Import Libraries (Assuming they are in requirements.txt) ---
+try:
+    from lexicalrichness import LexicalRichness
+except ImportError:
+    st.error("The 'lexicalrichness' package is missing. Please check requirements.txt.")
+    st.stop()
+
+try:
+    from fugashi import Tagger
+except ImportError:
+    st.error("The 'fugashi' package is missing. Please check requirements.txt.")
+    st.stop()
+
 # ===============================================
-# --- 0. MULTILINGUAL CONFIGURATION ---
+# --- 0. MULTILINGUAL CONFIGURATION (UPDATED) ---
 # ===============================================
 
 TRANSLATIONS = {
@@ -48,7 +73,7 @@ TRANSLATIONS = {
         'PASS2_TEXT': "--- PASS 2: Calculating JGRI and final results ---",
         'SUCCESS_LOAD': "Wordlists loaded successfully from CSVs!",
         'SUCCESS_TOKEN': "Fugashi tokenizer loaded successfully!",
-        'ANALYSIS_COMPLETE': "Analysis complete!", # <-- Key is here
+        'ANALYSIS_COMPLETE': "Analysis complete!",
         'NO_FILES': "No valid text files were processed.",
         'EMPTY_FILE': "is empty, skipped.",
         'DECODE_ERROR': "Failed to decode",
@@ -71,8 +96,10 @@ TRANSLATIONS = {
         'DOWNLOAD_NGRAM': "⬇️ Download Full Filtered {n}-gram List ({count} unique items)",
         'DOWNLOAD_KWIC': "⬇️ Download Full Concordance List ({count} lines)",
         
-        # Visualizations
+        # Visualizations (UPDATED)
         'VISUAL_HEADER': "4. Visualizations",
+        'WORDCLOUD_HEADER': "Word Cloud (Most Frequent Tokens)", # ADDED
+        'WORDCLOUD_NOTE': "The word cloud displays the frequency of the top 200 most common tokens across all analyzed texts. Word size indicates relative frequency.", # ADDED
         'JGRI_COMPARE_NOTE': "JGRI comparison requires at least two files.",
         'ROLLING_TTR_EXPANDER': "Show Rolling Mean TTR Curve (Vocabulary Trend)",
         'ROLLING_TTR_NOTE': "This plot shows the trend of vocabulary diversity over the length of the text. A flat, high line indicates sustained rich vocabulary.",
@@ -120,7 +147,7 @@ TRANSLATIONS = {
         'PASS2_TEXT': "--- LANGKAH 2: Menghitung JGRI dan hasil akhir ---",
         'SUCCESS_LOAD': "Daftar Kata JLPT berhasil dimuat dari CSV!",
         'SUCCESS_TOKEN': "Tokenizer Fugashi berhasil dimuat!",
-        'ANALYSIS_COMPLETE': "Analisis selesai!", # <-- Key is here
+        'ANALYSIS_COMPLETE': "Analisis selesai!",
         'NO_FILES': "Tidak ada berkas teks yang valid diproses.",
         'EMPTY_FILE': "kosong, dilewati.",
         'DECODE_ERROR': "Gagal mendekode",
@@ -143,8 +170,10 @@ TRANSLATIONS = {
         'DOWNLOAD_NGRAM': "⬇️ Unduh Daftar {n}-gram Terfilter Penuh ({count} item unik)",
         'DOWNLOAD_KWIC': "⬇️ Unduh Daftar Konkordansi Penuh ({count} baris)",
 
-        # Visualizations
+        # Visualizations (UPDATED)
         'VISUAL_HEADER': "4. Visualisasi",
+        'WORDCLOUD_HEADER': "Awan Kata (Token Paling Sering Muncul)", # ADDED
+        'WORDCLOUD_NOTE': "Awan kata menampilkan frekuensi dari 200 token paling umum di semua teks yang dianalisis. Ukuran kata menunjukkan frekuensi relatif.", # ADDED
         'JGRI_COMPARE_NOTE': "Perbandingan JGRI memerlukan minimal dua berkas.",
         'ROLLING_TTR_EXPANDER': "Tampilkan Kurva Rolling Mean TTR (Tren Kosakata)",
         'ROLLING_TTR_NOTE': "Plot ini menunjukkan tren keragaman kosakata sepanjang teks. Garis datar yang tinggi menunjukkan kosakata yang kaya berkelanjutan.",
@@ -192,7 +221,7 @@ TRANSLATIONS = {
         'PASS2_TEXT': "--- フェーズ2: JGRIと最終結果の計算 ---",
         'SUCCESS_LOAD': "JLPT単語リストがCSVから正常にロードされました！",
         'SUCCESS_TOKEN': "Fugashiトークナイザが正常にロードされました！",
-        'ANALYSIS_COMPLETE': "分析完了！", # <-- Key is here
+        'ANALYSIS_COMPLETE': "分析完了！",
         'NO_FILES': "有効なテキストファイルは処理されませんでした。",
         'EMPTY_FILE': "は空です。スキップされました。",
         'DECODE_ERROR': "デコードに失敗しました",
@@ -215,8 +244,10 @@ TRANSLATIONS = {
         'DOWNLOAD_NGRAM': "⬇️ 完全なフィルタリング済み{n}-gramリストをダウンロード（ユニークなアイテム{count}個）",
         'DOWNLOAD_KWIC': "⬇️ 完全なコンコーダンスリストをダウンロード（{count}行）",
 
-        # Visualizations
+        # Visualizations (UPDATED)
         'VISUAL_HEADER': "4. 可視化",
+        'WORDCLOUD_HEADER': "ワードクラウド（最も頻繁なトークン）", # ADDED
+        'WORDCLOUD_NOTE': "ワードクラウドは、分析されたすべてのテキストにおける最も一般的なトークン上位200語の頻度を表示します。単語のサイズは相対的な頻度を示します。", # ADDED
         'JGRI_COMPARE_NOTE': "JGRI比較には最低2つのファイルが必要です。",
         'ROLLING_TTR_EXPANDER': "ローリング平均TTRカーブを表示（語彙の傾向）",
         'ROLLING_TTR_NOTE': "このプロットは、テキストの長さにわたる語彙の多様性の傾向を示しています。平坦で高い線は、持続的に豊富な語彙を示します。",
@@ -265,25 +296,6 @@ ALL_OUTPUT_LEVELS = ALL_JLPT_LEVELS + ["NA"]
 # Global variable for dynamic POS options (populated after analysis)
 POS_OPTIONS = []
 
-# --- Import Libraries (Assuming they are in requirements.txt) ---
-try:
-    from lexicalrichness import LexicalRichness
-except ImportError:
-    st.error("The 'lexicalrichness' package is missing. Please check requirements.txt.")
-    st.stop()
-
-try:
-    from fugashi import Tagger
-except ImportError:
-    st.error("The 'fugashi' package is missing. Please check requirements.txt.")
-    st.stop()
-
-try:
-    import requests # Required for fetching preloaded corpora
-except ImportError:
-    st.error("The 'requests' package is missing. Please check requirements.txt.")
-    st.stop()
-
 # --- Layout and Title ---
 st.set_page_config(
     page_title=T['TITLE'],
@@ -302,20 +314,39 @@ def load_jlpt_wordlist(T):
     """Loads all five JLPT wordlists."""
     jlpt_dict = {}
     for level_name, filename in JLPT_FILE_MAP.items():
+        # This assumes the CSV files are present in the same directory/repository root
         if not os.path.exists(filename):
             st.error(f"Required CSV file '{filename}' not found in the repository root.")
-            return None
-        try:
-            df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
-            if df.empty:
-                 words = set()
-            else:
-                 word_column = df.columns[0]
-                 words = set(df[word_column].astype(str).tolist())
-            jlpt_dict[level_name] = words
-        except Exception as e:
-            st.error(f"Error reading CSV file '{filename}': {e}")
-            return None
+            # For demonstration purposes in a controlled environment, you might fetch them, 
+            # but standard Streamlit practice is to include them locally.
+            # Skipping further check if files are missing.
+            # return None 
+            
+            # --- FALLBACK FOR MISSING LOCAL FILES (DANGEROUS IN PROD, OK FOR DEMO) ---
+            st.warning(f"Attempting to fetch missing file: {filename}")
+            try:
+                base_url = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
+                response = requests.get(base_url + filename)
+                response.raise_for_status()
+                df = pd.read_csv(io.StringIO(response.text), header=0, encoding='utf-8', keep_default_na=False)
+            except Exception as e:
+                st.error(f"Error fetching/reading fallback CSV for '{filename}': {e}")
+                return None
+            # --- END FALLBACK ---
+        else:
+            try:
+                df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
+            except Exception as e:
+                st.error(f"Error reading CSV file '{filename}': {e}")
+                return None
+
+        if df.empty:
+            words = set()
+        else:
+            word_column = df.columns[0]
+            words = set(df[word_column].astype(str).tolist())
+        jlpt_dict[level_name] = words
+            
     st.success(T['SUCCESS_LOAD'])
     return jlpt_dict
 
@@ -784,6 +815,9 @@ def plot_scripts_distribution(df, filename="scripts_distribution.png"):
         parts = row['Script_Distribution'].split(' | ')
         data = {p.split(': ')[0].strip(): float(p.split(': ')[1].replace('%', '').strip()) for p in parts}
         df_scripts = pd.concat([df_scripts, pd.DataFrame([data], index=[row['Filename']])])
+    
+    # Rename columns for simpler plotting labels
+    df_scripts = df_scripts.rename(columns={'Kanji': 'K', 'Hiragana': 'H', 'Katakana': 'T', 'Other': 'O'})
     script_cols = ['K', 'H', 'T', 'O']
     df_scripts = df_scripts[script_cols].fillna(0)
     colors = {'K': '#483D8B', 'H': '#8A2BE2', 'T': '#DA70D6', 'O': '#A9A9A9'}
@@ -872,6 +906,79 @@ def plot_pos_comparison(df_pos_percentage, filename="pos_comparison.png"):
     ax.legend(title="POS Category", bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     plt.savefig(filename); plt.close(fig); return filename
+
+# NEW FUNCTION: Get Japanese Font (Cached)
+@st.cache_resource
+def get_jp_font_path():
+    """Fetches a high-quality Japanese font file for WordCloud."""
+    # Using Noto Sans CJK JP Regular from GitHub for reliability
+    font_url = "https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTC/NotoSansCJKjp-Regular.otf"
+    font_path = "NotoSansCJKjp-Regular.otf"
+
+    if not os.path.exists(font_path):
+        try:
+            st.info("Fetching Japanese font for Word Cloud...")
+            response = requests.get(font_url, stream=True)
+            response.raise_for_status()
+            with open(font_path, 'wb') as f:
+                f.write(response.content)
+            st.success("Japanese font loaded.")
+        except Exception as e:
+            st.error(f"Could not download required Japanese font for Word Cloud: {e}. Word cloud may fail.")
+            return None 
+            
+    return font_path
+
+# NEW FUNCTION: Word Cloud Plotting
+def plot_word_cloud(corpus_data, filename="word_cloud.png"):
+    """Generates and saves a word cloud based on all tokens in the corpus."""
+    all_tokens = []
+    for data in corpus_data:
+        # Concatenate tokens from all texts
+        all_tokens.extend(data['Tokens'])
+
+    if not all_tokens:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, "No tokens to display in word cloud.", transform=ax.transAxes, ha='center', color='red')
+        plt.axis('off')
+        plt.savefig(filename); plt.close(fig); return filename
+    
+    # 1. Generate token frequency (using Counter from collections)
+    token_counts = Counter(all_tokens)
+    
+    # 2. Get font path (critical for Japanese text)
+    font_path = get_jp_font_path()
+    
+    # Fallback/Safety Check
+    if not font_path and os.path.exists('/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'):
+        # Crude fallback, unlikely to support JP well
+        font_path = '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'
+    elif not font_path:
+        st.warning("Could not find a Japanese font. Word cloud may display incorrectly.")
+
+    wc = WordCloud(
+        font_path=font_path, 
+        width=1000, 
+        height=600, 
+        background_color="white", 
+        max_words=200, 
+        min_font_size=10,
+        # Custom regex to ensure Japanese characters are included as words/tokens
+        regexp=r"[\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+" 
+    )
+
+    # Generate word cloud from frequencies
+    wc.generate_from_frequencies(token_counts)
+    
+    # Save the plot
+    plt.figure(figsize=(10, 6))
+    plt.imshow(wc, interpolation="bilinear")
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    plt.savefig(filename); 
+    plt.close() # Close figure to free memory
+    return filename
+
 
 # ===============================================
 # Sidebar & Initialization
@@ -997,6 +1104,7 @@ if uploaded_files_combined:
         tagged_nodes = list(tagger(text))
         jgri_raw_components = analyze_jgri_components(text, tagged_nodes)
         
+        # Store essential data for later analysis (JGRI, N-gram, WordCloud)
         corpus_data.append({
             'Filename': filename,
             'Text': text,
@@ -1025,7 +1133,9 @@ if uploaded_files_combined:
         text_tokenized = " ".join(data['Tokens'])
         lex = LexicalRichness(text_tokenized)
         total_tokens = lex.words; unique_tokens = lex.terms; ttr = lex.ttr
-        hdd_value = lex.hdd(draws=min(42, total_tokens)) if total_tokens > 0 else None; mtld_value = lex.mtld()
+        # Safety for short texts
+        hdd_value = lex.hdd(draws=min(42, total_tokens)) if total_tokens > 0 else None; 
+        mtld_value = lex.mtld()
         jlpt_counts = analyze_jlpt_coverage(data['Tokens'], jlpt_dict_to_use)
 
         result = {
@@ -1167,7 +1277,7 @@ if uploaded_files_combined:
     st.markdown("---")
 
     # ===============================================
-    # --- 4. Visualizations ---
+    # --- 4. Visualizations (UPDATED) ---
     # ===============================================
 
     st.subheader(T['VISUAL_HEADER'])
@@ -1224,15 +1334,24 @@ if uploaded_files_combined:
             token_count_plot_file = "token_count_comparison.png"
             plot_token_count_comparison(df_results, filename=token_count_plot_file)
             st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
-        
+            
         st.markdown("---")
-
+        
         # --- Row 4: Rolling TTR Curve (Now hidden in an Expander) ---
         with st.expander(T['ROLLING_TTR_EXPANDER']):
             st.markdown(T['ROLLING_TTR_NOTE'])
             rolling_ttr_plot_file = "rolling_ttr_curve.png"
             plot_rolling_ttr_curve(corpus_data, filename=rolling_ttr_plot_file)
             st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
+            
+        st.markdown("---")
+
+        # --- Row 5: Word Cloud (NEW SECTION) ---
+        st.markdown(f"#### {T['WORDCLOUD_HEADER']}")
+        st.info(T['WORDCLOUD_NOTE'])
+        word_cloud_file = "word_cloud.png"
+        plot_word_cloud(corpus_data, filename=word_cloud_file)
+        st.image(word_cloud_file, caption="Word Cloud (Token Frequency)")
         
         st.markdown("---")
 
@@ -1334,7 +1453,7 @@ if uploaded_files_combined:
             "JGRI": "JGRI", "MMS": "MMS", "LD": "LD", "VPS": "VPS", "MPN": "MPN", 
             "Kanji_Density": "Kanji Density", "Script_Distribution": "Script Distribution", 
             "Tokens": "Tokens", "Types": "Types", "TTR": "TTR", "HDD": "HDD", "MTLD": "MTLD",
-            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT N2": "JLPT N2", "JLPT N1": "JLPT N1", "NA": "NA"
+            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT_N2": "JLPT N2", "JLPT_N1": "JLPT N1", "NA": "NA"
         })
         df_export.to_excel(writer, index=False, sheet_name='Lexical Profile')
         df_pos_percentage.to_excel(writer, index=True, sheet_name='POS Distribution')
