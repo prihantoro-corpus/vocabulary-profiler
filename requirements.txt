@@ -5,3 +5,4 @@ xlsxwriter           # Needed for writing the Excel output
 fugashi
 lexicalrichness
 unidic-lite          # Fixes the MeCab pathing issue
+wordcloud
