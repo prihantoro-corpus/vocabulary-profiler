@@ -19,10 +19,14 @@ TRANSLATIONS = {
         'SUBTITLE': "Analyze lexical richness, structural complexity, and JLPT word coverage.",
         'MANUAL_LINK': "https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing",
         'MANUAL_TEXT': "User Guide and Results Interpretation",
-        # Sidebar
-        'UPLOAD_HEADER': "1. Upload Raw Text Files",
+        # Sidebar Upload
+        'UPLOAD_HEADER': "1. Upload Text Sources",
+        'UPLOAD_INDIVIDUAL': "A. Upload Individual TXT Files",
+        'UPLOAD_BATCH': "B. Upload Batch Excel File",
         'UPLOAD_HELPER': "The files will be analyzed against the single pre-loaded JLPT word list.",
         'UPLOAD_BUTTON': "Upload one or more **.txt** files for analysis.",
+        'EXCEL_BUTTON': "Upload **Excel (.xlsx)** for Batch Processing",
+        'EXCEL_NOTE': "Sheet 1 must contain: Column 1: Text File Name, Column 2: Content.",
         'WORDLIST_HEADER': "2. Word List Used",
         'WORDLIST_INFO': "Using the pre-loaded **Unknown Source** list",
         'NGRAM_HEADER': "3. N-gram Settings",
@@ -43,7 +47,7 @@ TRANSLATIONS = {
         'NO_FILES': "No valid text files were processed.",
         'EMPTY_FILE': "is empty, skipped.",
         'DECODE_ERROR': "Failed to decode",
-        'UPLD_TO_BEGIN': "Please upload your Japanese text files (.txt) using the **sidebar**.",
+        'UPLD_TO_BEGIN': "Please upload your Japanese text files (.txt) or Excel batch using the **sidebar**.",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. N-gram Frequency Analysis & Concordance",
@@ -82,10 +86,14 @@ TRANSLATIONS = {
         'SUBTITLE': "Menganalisis kekayaan leksikal, kompleksitas struktural, dan cakupan kata JLPT.",
         'MANUAL_LINK': "https://docs.google.com/document/d/1SvfMQjsTm8uLI0PTwSOL1lTEiLhVUFArb6Q0lRHSiZU/edit?usp=sharing",
         'MANUAL_TEXT': "Panduan Pengguna dan Interpretasi Hasil",
-        # Sidebar
-        'UPLOAD_HEADER': "1. Unggah Berkas Teks Mentah",
+        # Sidebar Upload
+        'UPLOAD_HEADER': "1. Unggah Sumber Teks",
+        'UPLOAD_INDIVIDUAL': "A. Unggah Berkas TXT Individual",
+        'UPLOAD_BATCH': "B. Unggah Berkas Excel Batch",
         'UPLOAD_HELPER': "Berkas akan dianalisis terhadap daftar kata JLPT yang dimuat sebelumnya.",
         'UPLOAD_BUTTON': "Unggah satu atau lebih berkas **.txt** untuk analisis.",
+        'EXCEL_BUTTON': "Unggah **Excel (.xlsx)** untuk Pemrosesan Batch",
+        'EXCEL_NOTE': "Sheet 1 harus berisi: Kolom 1: Nama Berkas Teks, Kolom 2: Konten.",
         'WORDLIST_HEADER': "2. Daftar Kata yang Digunakan",
         'WORDLIST_INFO': "Menggunakan daftar **Sumber Tidak Diketahui** yang dimuat sebelumnya",
         'NGRAM_HEADER': "3. Pengaturan N-gram",
@@ -106,7 +114,7 @@ TRANSLATIONS = {
         'NO_FILES': "Tidak ada berkas teks yang valid diproses.",
         'EMPTY_FILE': "kosong, dilewati.",
         'DECODE_ERROR': "Gagal mendekode",
-        'UPLD_TO_BEGIN': "Mohon unggah berkas teks Jepang Anda (.txt) menggunakan **sidebar**.",
+        'UPLD_TO_BEGIN': "Mohon unggah berkas teks Jepang Anda (.txt) atau Excel batch menggunakan **sidebar**.",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. Analisis Frekuensi N-gram & Konkordansi",
@@ -145,10 +153,14 @@ TRANSLATIONS = {
         'SUBTITLE': "語彙の豊富さ、構造的な複雑さ、およびJLPTの単語カバー率を分析します。",
         'MANUAL_LINK': "https://docs.google.com/document/d/1tJB4lDKBUPBHHHB8Vj0fZyXtwH-lNDeF9tifDS7lzFQ/edit?usp=sharing",
         'MANUAL_TEXT': "ユーザーガイドと結果の解釈",
-        # Sidebar
-        'UPLOAD_HEADER': "1. 生テキストファイルのアップロード",
+        # Sidebar Upload
+        'UPLOAD_HEADER': "1. テキストソースのアップロード",
+        'UPLOAD_INDIVIDUAL': "A. 個別TXTファイルのアップロード",
+        'UPLOAD_BATCH': "B. Excelバッチファイルのアップロード",
         'UPLOAD_HELPER': "ファイルは事前にロードされたJLPT単語リストに対して分析されます。",
         'UPLOAD_BUTTON': "分析用の** .txt **ファイルを1つ以上アップロードしてください。",
+        'EXCEL_BUTTON': "バッチ処理用の** Excel (.xlsx) **をアップロード",
+        'EXCEL_NOTE': "シート1には、列1: テキストファイル名、列2: コンテンツが必要です。",
         'WORDLIST_HEADER': "2. 使用される単語リスト",
         'WORDLIST_INFO': "事前ロードされた**不明なソース**リストを使用しています",
         'NGRAM_HEADER': "3. N-gram設定",
@@ -169,7 +181,7 @@ TRANSLATIONS = {
         'NO_FILES': "有効なテキストファイルは処理されませんでした。",
         'EMPTY_FILE': "は空です。スキップされました。",
         'DECODE_ERROR': "デコードに失敗しました",
-        'UPLD_TO_BEGIN': "サイドバーを使用して日本語テキストファイル(.txt)をアップロードしてください。",
+        'UPLD_TO_BEGIN': "サイドバーを使用して日本語テキストファイル(.txt)またはExcelバッチをアップロードしてください。",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. N-gram頻度分析とコンコーダンス",
@@ -288,6 +300,66 @@ def initialize_tokenizer(T):
         st.error("Please ensure 'unidic-lite' is in your requirements.txt to fix MeCab initialization.")
         st.stop()
         return None
+
+# ===============================================
+# New Helper Function: Process Excel Batch Upload
+# ===============================================
+
+def process_excel_upload(uploaded_excel):
+    """
+    Reads an Excel file (Sheet 1, Column 1=Filename, Column 2=Content)
+    and converts rows into a list of tuples (filename, data_io).
+    """
+    processed_files = []
+    if uploaded_excel is None:
+        return processed_files
+
+    try:
+        # Read the first sheet, forcing no header (header=None)
+        df = pd.read_excel(uploaded_excel, header=None, sheet_name=0)
+        
+        if df.empty or df.shape[1] < 2:
+            st.sidebar.warning(f"Excel file '{uploaded_excel.name}' is empty or does not contain required columns (1 and 2).")
+            return processed_files
+
+        # Ensure we are working with string data and drop NaNs
+        # Column 0 is Filename, Column 1 is Content
+        df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
+        df.iloc[:, 1] = df.iloc[:, 1].astype(str).str.strip()
+        df = df.dropna(subset=[0, 1])
+
+        for index, row in df.iterrows():
+            filename = row.iloc[0]
+            content = row.iloc[1]
+            
+            # Skip rows where content or filename is essentially empty (e.g., if excel auto-filled nan)
+            if filename == 'nan' or content == 'nan' or not filename or not content:
+                continue 
+
+            # Create a simple structure similar to an uploaded file object
+            # We use io.BytesIO to wrap the content
+            processed_files.append(
+                (filename, io.BytesIO(content.encode('utf-8')))
+            )
+        
+        if processed_files:
+            st.sidebar.success(f"Successfully loaded {len(processed_files)} texts from Excel batch.")
+        return processed_files
+
+    except Exception as e:
+        st.sidebar.error(f"Error reading Excel file: {e}")
+        return []
+
+# Helper class to combine Excel output with Streamlit's UploadedFile objects
+class MockUploadedFile:
+    def __init__(self, name, data_io):
+        self.name = name
+        self._data_io = data_io
+    def read(self):
+        # Reset pointer before reading to ensure full content is captured
+        self._data_io.seek(0)
+        return self._data_io.read()
+
 
 # ===============================================
 # Core N-gram and KWIC Analysis
@@ -465,7 +537,7 @@ def generate_concordance(corpus_data, filters, n_gram_size, left_context, right_
     return pd.DataFrame(concordance_list)
 
 # ===============================================
-# Analysis and Plotting Functions (CORRECTED SYNTAX)
+# Analysis and Plotting Functions 
 # ===============================================
 
 def analyze_jgri_components(text, tagged_nodes):
@@ -731,13 +803,40 @@ st.sidebar.markdown("---")
 
 st.sidebar.header(T['UPLOAD_HEADER'])
 
-input_files = st.sidebar.file_uploader(
+# --- A. Upload Individual TXT Files ---
+st.sidebar.markdown(f"**{T['UPLOAD_INDIVIDUAL']}**")
+input_files_txt = st.sidebar.file_uploader(
     T['UPLOAD_BUTTON'],
     type=["txt"],
     accept_multiple_files=True,
-    key="input_uploader",
+    key="input_uploader_txt",
     help=T['UPLOAD_HELPER']
 )
+st.sidebar.markdown("---")
+
+# --- B. Upload Batch Excel File ---
+st.sidebar.markdown(f"**{T['UPLOAD_BATCH']}**")
+input_files_excel = st.sidebar.file_uploader(
+    T['EXCEL_BUTTON'],
+    type=["xlsx"],
+    key="input_uploader_excel",
+    help=T['EXCEL_NOTE']
+)
+
+# Process Excel batch immediately if uploaded
+processed_excel_files = process_excel_upload(input_files_excel)
+
+# Combine uploaded files into a single list for processing
+uploaded_files_combined = []
+if input_files_txt:
+    # Standard Streamlit UploadedFile objects
+    uploaded_files_combined.extend(input_files_txt)
+
+if processed_excel_files:
+    # Convert processed (filename, BytesIO) tuples into MockUploadedFile objects
+    for filename, data_io in processed_excel_files:
+        uploaded_files_combined.append(MockUploadedFile(filename, data_io))
+
 
 st.sidebar.header(T['WORDLIST_HEADER'])
 st.sidebar.info(f"{T['WORDLIST_INFO']} ({len(ALL_JLPT_LEVELS)} levels).")
@@ -751,7 +850,7 @@ pos_percentage_results = []
 pos_count_results = []
 corpus_data = [] 
 
-if input_files:
+if uploaded_files_combined:
     
     # --- PASS 1 & 2: Data Processing ---
     
@@ -760,21 +859,27 @@ if input_files:
     
     progress_bar = st.progress(0, text=T['PASS1_TEXT'])
     
-    # --- START OF FILE PROCESSING LOOP (Verified) ---
-    for i, uploaded_file in enumerate(input_files):
+    # --- START OF FILE PROCESSING LOOP (Handles both TXT and Excel/Mock files) ---
+    for i, uploaded_file in enumerate(uploaded_files_combined):
         filename = uploaded_file.name
+        
+        # Ensure the file pointer is at the start, especially for reusable Mock objects
+        if hasattr(uploaded_file, '_data_io'): 
+            uploaded_file._data_io.seek(0)
+            
         content_bytes = uploaded_file.read()
+        
         try:
              text = content_bytes.decode('utf-8')
         except UnicodeDecodeError:
              st.error(f"{T['DECODE_ERROR']} {filename}. Ensure it is UTF-8 encoded.")
-             progress_bar.progress((i + 1) / len(input_files))
+             progress_bar.progress((i + 1) / len(uploaded_files_combined))
              continue
              
         text = text.strip()
         if not text:
             st.warning(f"File {filename} {T['EMPTY_FILE']}")
-            progress_bar.progress((i + 1) / len(input_files))
+            progress_bar.progress((i + 1) / len(uploaded_files_combined))
             continue
         
         tagged_nodes = list(tagger(text))
@@ -787,7 +892,7 @@ if input_files:
             'Tokens': [word.surface for word in tagged_nodes],
             **jgri_raw_components
         })
-        progress_bar.progress((i + 1) / len(input_files), text=f"PASS 1: Analyzed {i+1} of {len(input_files)} files.")
+        progress_bar.progress((i + 1) / len(uploaded_files_combined), text=f"PASS 1: Analyzed {i+1} of {len(uploaded_files_combined)} files.")
     # --- END OF FILE PROCESSING LOOP ---
 
     if not corpus_data:
@@ -874,9 +979,9 @@ if input_files:
         with filter_cols[i]:
             # Word filter
             current_filters[f'word_{i}'] = st.text_input(
-                label=f"{T['KWIC_HELP_KW']} {i+1}", 
+                label=f"Word {i+1}", 
                 key=f'word_filter_{i}', 
-                placeholder=f"{T['KWIC_HELP_KW']} {i+1}"
+                placeholder=f"Filter word {i+1}"
             )
             # POS filter (Dropdown)
             current_filters[f'pos_{i}'] = st.selectbox(
@@ -898,9 +1003,9 @@ if input_files:
         use_container_width=True,
         height=300,
         column_config={
-            "N_gram": st.column_config.Column(f"{n_gram_size}-gram", help=f"{T['KWIC_HELP_KW']} {n_gram_size}-gram"),
-            "Frequency": st.column_config.NumberColumn(f"{T['NGRAM_RADIO']}", help=f"{T['NGRAM_RADIO']}"), # Simplified help text
-            "Percentage": st.column_config.TextColumn(f"{T['POS_HEADER']}", help=f"{T['POS_HEADER']}"), # Simplified help text
+            "N_gram": st.column_config.Column(f"{n_gram_size}-gram", help=f"Sequence of words/morphemes."),
+            "Frequency": st.column_config.NumberColumn("Frequency", help="Total count of this specific N-gram."),
+            "Percentage": st.column_config.TextColumn("Percentage", help="Frequency relative to the total number of filtered N-grams."),
         }
     )
     
@@ -1119,7 +1224,7 @@ if input_files:
             "JGRI": "JGRI", "MMS": "MMS", "LD": "LD", "VPS": "VPS", "MPN": "MPN", 
             "Kanji_Density": "Kanji Density", "Script_Distribution": "Script Distribution", 
             "Tokens": "Tokens", "Types": "Types", "TTR": "TTR", "HDD": "HDD", "MTLD": "MTLD",
-            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT N3": "JLPT N3", "JLPT N2": "JLPT N2", "JLPT N1": "JLPT N1", "NA": "NA"
+            "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT N2": "JLPT N2", "JLPT N1": "JLPT N1", "NA": "NA"
         })
         df_export.to_excel(writer, index=False, sheet_name='Lexical Profile')
         df_pos_percentage.to_excel(writer, index=True, sheet_name='POS Distribution')
