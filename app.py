@@ -22,11 +22,11 @@ TRANSLATIONS = {
         # Sidebar Upload
         'UPLOAD_HEADER': "1. Upload Text Sources",
         'UPLOAD_INDIVIDUAL': "A. Upload Individual TXT Files",
-        'UPLOAD_BATCH': "B. Upload Batch Excel File",
+        'UPLOAD_BATCH': "B. Upload Batch Excel/CSV File",
         'UPLOAD_HELPER': "The files will be analyzed against the single pre-loaded JLPT word list.",
         'UPLOAD_BUTTON': "Upload one or more **.txt** files for analysis.",
-        'EXCEL_BUTTON': "Upload **Excel (.xlsx)** for Batch Processing",
-        'EXCEL_NOTE': "Sheet 1 must contain: Column 1: Text File Name, Column 2: Content.",
+        'EXCEL_BUTTON': "Upload **Excel (.xlsx) / CSV (.csv)** for Batch Processing",
+        'EXCEL_NOTE': "Sheet 1/Content must contain: Column 1: Text File Name, Column 2: Content.",
         'WORDLIST_HEADER': "2. Word List Used",
         'WORDLIST_INFO': "Using the pre-loaded **Unknown Source** list",
         'NGRAM_HEADER': "3. N-gram Settings",
@@ -47,7 +47,7 @@ TRANSLATIONS = {
         'NO_FILES': "No valid text files were processed.",
         'EMPTY_FILE': "is empty, skipped.",
         'DECODE_ERROR': "Failed to decode",
-        'UPLD_TO_BEGIN': "Please upload your Japanese text files (.txt) or Excel batch using the **sidebar**.",
+        'UPLD_TO_BEGIN': "Please upload your Japanese text files (.txt) or Excel/CSV batch using the **sidebar**.",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. N-gram Frequency Analysis & Concordance",
@@ -89,11 +89,11 @@ TRANSLATIONS = {
         # Sidebar Upload
         'UPLOAD_HEADER': "1. Unggah Sumber Teks",
         'UPLOAD_INDIVIDUAL': "A. Unggah Berkas TXT Individual",
-        'UPLOAD_BATCH': "B. Unggah Berkas Excel Batch",
+        'UPLOAD_BATCH': "B. Unggah Berkas Excel/CSV Batch",
         'UPLOAD_HELPER': "Berkas akan dianalisis terhadap daftar kata JLPT yang dimuat sebelumnya.",
         'UPLOAD_BUTTON': "Unggah satu atau lebih berkas **.txt** untuk analisis.",
-        'EXCEL_BUTTON': "Unggah **Excel (.xlsx)** untuk Pemrosesan Batch",
-        'EXCEL_NOTE': "Sheet 1 harus berisi: Kolom 1: Nama Berkas Teks, Kolom 2: Konten.",
+        'EXCEL_BUTTON': "Unggah **Excel (.xlsx) / CSV (.csv)** untuk Pemrosesan Batch",
+        'EXCEL_NOTE': "Sheet 1/Content harus berisi: Kolom 1: Nama Berkas Teks, Kolom 2: Konten.",
         'WORDLIST_HEADER': "2. Daftar Kata yang Digunakan",
         'WORDLIST_INFO': "Menggunakan daftar **Sumber Tidak Diketahui** yang dimuat sebelumnya",
         'NGRAM_HEADER': "3. Pengaturan N-gram",
@@ -114,7 +114,7 @@ TRANSLATIONS = {
         'NO_FILES': "Tidak ada berkas teks yang valid diproses.",
         'EMPTY_FILE': "kosong, dilewati.",
         'DECODE_ERROR': "Gagal mendekode",
-        'UPLD_TO_BEGIN': "Mohon unggah berkas teks Jepang Anda (.txt) atau Excel batch menggunakan **sidebar**.",
+        'UPLD_TO_BEGIN': "Mohon unggah berkas teks Jepang Anda (.txt) atau Excel/CSV batch menggunakan **sidebar**.",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. Analisis Frekuensi N-gram & Konkordansi",
@@ -156,11 +156,11 @@ TRANSLATIONS = {
         # Sidebar Upload
         'UPLOAD_HEADER': "1. テキストソースのアップロード",
         'UPLOAD_INDIVIDUAL': "A. 個別TXTファイルのアップロード",
-        'UPLOAD_BATCH': "B. Excelバッチファイルのアップロード",
+        'UPLOAD_BATCH': "B. Excel/CSVバッチファイルのアップロード",
         'UPLOAD_HELPER': "ファイルは事前にロードされたJLPT単語リストに対して分析されます。",
         'UPLOAD_BUTTON': "分析用の** .txt **ファイルを1つ以上アップロードしてください。",
-        'EXCEL_BUTTON': "バッチ処理用の** Excel (.xlsx) **をアップロード",
-        'EXCEL_NOTE': "シート1には、列1: テキストファイル名、列2: コンテンツが必要です。",
+        'EXCEL_BUTTON': "バッチ処理用の** Excel (.xlsx) / CSV (.csv) **をアップロード",
+        'EXCEL_NOTE': "シート1/コンテンツには、列1: テキストファイル名、列2: コンテンツが必要です。",
         'WORDLIST_HEADER': "2. 使用される単語リスト",
         'WORDLIST_INFO': "事前ロードされた**不明なソース**リストを使用しています",
         'NGRAM_HEADER': "3. N-gram設定",
@@ -181,7 +181,7 @@ TRANSLATIONS = {
         'NO_FILES': "有効なテキストファイルは処理されませんでした。",
         'EMPTY_FILE': "は空です。スキップされました。",
         'DECODE_ERROR': "デコードに失敗しました",
-        'UPLD_TO_BEGIN': "サイドバーを使用して日本語テキストファイル(.txt)またはExcelバッチをアップロードしてください。",
+        'UPLD_TO_BEGIN': "サイドバーを使用して日本語テキストファイル(.txt)またはExcel/CSVバッチをアップロードしてください。",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. N-gram頻度分析とコンコーダンス",
@@ -307,23 +307,34 @@ def initialize_tokenizer(T):
 
 def process_excel_upload(uploaded_excel):
     """
-    Reads an Excel file (Sheet 1, Column 1=Filename, Column 2=Content)
+    Reads a file (Excel or CSV) assuming Column 1=Filename, Column 2=Content
     and converts rows into a list of tuples (filename, data_io).
     """
     processed_files = []
     if uploaded_excel is None:
         return processed_files
 
+    file_extension = uploaded_excel.name.split('.')[-1].lower()
+    
     try:
-        # Read the first sheet, forcing no header (header=None)
-        df = pd.read_excel(uploaded_excel, header=None, sheet_name=0)
+        if file_extension == 'xlsx':
+            # Use pd.read_excel for actual Excel files
+            df = pd.read_excel(uploaded_excel, header=None, sheet_name=0)
+        elif file_extension == 'csv':
+            # Use pd.read_csv for CSV files, assuming no header (like the user's data)
+            # The file is passed via BytesIO, so we must read the raw content first.
+            uploaded_excel.seek(0)
+            data = uploaded_excel.read()
+            df = pd.read_csv(io.BytesIO(data), header=None)
+        else:
+            st.sidebar.warning(f"Unsupported file type for batch upload: .{file_extension}")
+            return processed_files
         
         if df.empty or df.shape[1] < 2:
-            st.sidebar.warning(f"Excel file '{uploaded_excel.name}' is empty or does not contain required columns (1 and 2).")
+            st.sidebar.warning(f"File '{uploaded_excel.name}' is empty or does not contain required columns (1 and 2).")
             return processed_files
 
-        # Ensure we are working with string data and drop NaNs
-        # Column 0 is Filename, Column 1 is Content
+        # Columns 0 and 1 correspond to the first two columns (Filename and Content)
         df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
         df.iloc[:, 1] = df.iloc[:, 1].astype(str).str.strip()
         df = df.dropna(subset=[0, 1])
@@ -332,25 +343,24 @@ def process_excel_upload(uploaded_excel):
             filename = row.iloc[0]
             content = row.iloc[1]
             
-            # Skip rows where content or filename is essentially empty (e.g., if excel auto-filled nan)
+            # Skip rows where content or filename is essentially empty
             if filename == 'nan' or content == 'nan' or not filename or not content:
                 continue 
 
-            # Create a simple structure similar to an uploaded file object
-            # We use io.BytesIO to wrap the content
+            # Create a tuple (filename, BytesIO content)
             processed_files.append(
                 (filename, io.BytesIO(content.encode('utf-8')))
             )
         
         if processed_files:
-            st.sidebar.success(f"Successfully loaded {len(processed_files)} texts from Excel batch.")
+            st.sidebar.success(f"Successfully loaded {len(processed_files)} texts from batch file.")
         return processed_files
 
     except Exception as e:
-        st.sidebar.error(f"Error reading Excel file: {e}")
+        st.sidebar.error(f"Error reading batch file: {e}")
         return []
 
-# Helper class to combine Excel output with Streamlit's UploadedFile objects
+# Helper class to combine Excel/CSV output with Streamlit's UploadedFile objects
 class MockUploadedFile:
     def __init__(self, name, data_io):
         self.name = name
@@ -360,9 +370,9 @@ class MockUploadedFile:
         self._data_io.seek(0)
         return self._data_io.read()
 
-
 # ===============================================
 # Core N-gram and KWIC Analysis
+# (Functions remain the same as the last verified version)
 # ===============================================
 
 def get_n_grams(tagged_nodes, n):
@@ -814,11 +824,11 @@ input_files_txt = st.sidebar.file_uploader(
 )
 st.sidebar.markdown("---")
 
-# --- B. Upload Batch Excel File ---
+# --- B. Upload Batch Excel/CSV File ---
 st.sidebar.markdown(f"**{T['UPLOAD_BATCH']}**")
 input_files_excel = st.sidebar.file_uploader(
     T['EXCEL_BUTTON'],
-    type=["xlsx"],
+    type=["xlsx", "csv"], # Accept both XLSX and CSV
     key="input_uploader_excel",
     help=T['EXCEL_NOTE']
 )
@@ -863,7 +873,7 @@ if uploaded_files_combined:
     for i, uploaded_file in enumerate(uploaded_files_combined):
         filename = uploaded_file.name
         
-        # Ensure the file pointer is at the start, especially for reusable Mock objects
+        # Ensure the file pointer is at the start
         if hasattr(uploaded_file, '_data_io'): 
             uploaded_file._data_io.seek(0)
             
@@ -1130,9 +1140,7 @@ if uploaded_files_combined:
     # ===============================================
     st.subheader(T['SUMMARY_HEADER'])
     
-    # --- Dynamic Column Configuration for Tooltips and Formatting ---
-    
-    # Note: st.column_config names must be literal strings, but the help text can use T
+    # --- Define Column Configuration for Tooltips and Formatting ---
     column_configuration = {
         "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
         "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
