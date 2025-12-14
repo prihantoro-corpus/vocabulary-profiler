@@ -21,11 +21,11 @@ TRANSLATIONS = {
         'MANUAL_LINK': "https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing",
         'MANUAL_TEXT': "User Guide and Results Interpretation",
         # Sidebar Upload
-        'UPLOAD_HEADER': "1. Load Corpus Source", # Changed header text
-        'SOURCE_SELECT': "Select Corpus Source:", # New radio label
-        'SOURCE_UPLOAD': "A. Upload Local Files", # New radio option
-        'SOURCE_PRELOAD_1': "B. Preloaded: DICO-JALF ALL", # New radio option
-        'SOURCE_PRELOAD_2': "C. Preloaded: DICO-JALF 30 Files", # New radio option
+        'UPLOAD_HEADER': "1. Load Corpus Source", 
+        'SOURCE_SELECT': "Select Corpus Source:", 
+        'SOURCE_UPLOAD': "A. Upload Local Files", 
+        'SOURCE_PRELOAD_1': "B. Preloaded: DICO-JALF ALL", 
+        'SOURCE_PRELOAD_2': "C. Preloaded: DICO-JALF 30 Files", 
         'UPLOAD_INDIVIDUAL': "Upload Individual TXT Files",
         'UPLOAD_BATCH': "Upload Batch Excel/CSV File",
         'UPLOAD_HELPER': "The files will be analyzed against the single pre-loaded JLPT word list.",
@@ -48,12 +48,12 @@ TRANSLATIONS = {
         'PASS2_TEXT': "--- PASS 2: Calculating JGRI and final results ---",
         'SUCCESS_LOAD': "Wordlists loaded successfully from CSVs!",
         'SUCCESS_TOKEN': "Fugashi tokenizer loaded successfully!",
-        'ANALYSIS_COMPLETE': "Analysis complete!",
+        'ANALYSIS_COMPLETE': "Analysis complete!", # <-- Key is here
         'NO_FILES': "No valid text files were processed.",
         'EMPTY_FILE': "is empty, skipped.",
         'DECODE_ERROR': "Failed to decode",
         'UPLD_TO_BEGIN': "Please select a corpus source from the **sidebar** to begin analysis.",
-        'FETCHING_CORPUS': "Fetching and processing preloaded corpus...", # New message
+        'FETCHING_CORPUS': "Fetching and processing preloaded corpus...",
         
         # N-gram & KWIC
         'NGRAM_MAIN_HEADER': "3. N-gram Frequency Analysis & Concordance",
@@ -120,7 +120,7 @@ TRANSLATIONS = {
         'PASS2_TEXT': "--- LANGKAH 2: Menghitung JGRI dan hasil akhir ---",
         'SUCCESS_LOAD': "Daftar Kata JLPT berhasil dimuat dari CSV!",
         'SUCCESS_TOKEN': "Tokenizer Fugashi berhasil dimuat!",
-        'ANALISIS_COMPLETE': "Analisis selesai!",
+        'ANALYSIS_COMPLETE': "Analisis selesai!", # <-- Key is here
         'NO_FILES': "Tidak ada berkas teks yang valid diproses.",
         'EMPTY_FILE': "kosong, dilewati.",
         'DECODE_ERROR': "Gagal mendekode",
@@ -172,10 +172,10 @@ TRANSLATIONS = {
         'SOURCE_PRELOAD_2': "C. 事前ロード: DICO-JALF 30ファイルのみ",
         'UPLOAD_INDIVIDUAL': "個別TXTファイルのアップロード",
         'UPLOAD_BATCH': "Excel/CSVバッチファイルのアップロード",
-        'UPLOAD_HELPER': "ファイルは事前にロードされたJLPT単語リストに対して分析されます。",
-        'UPLOAD_BUTTON': "分析用の** .txt **ファイルを1つ以上アップロードしてください。",
         'EXCEL_BUTTON': "バッチ処理用の** Excel (.xlsx) / CSV (.csv) **をアップロード",
         'EXCEL_NOTE': "シート1/コンテンツには、列1: テキストファイル名、列2: コンテンツが必要です（ヘッダーなし）。",
+        'UPLOAD_HELPER': "ファイルは事前にロードされたJLPT単語リストに対して分析されます。",
+        'UPLOAD_BUTTON': "分析用の** .txt **ファイルを1つ以上アップロードしてください。",
         'WORDLIST_HEADER': "2. 使用される単語リスト",
         'WORDLIST_INFO': "事前ロードされた**不明なソース**リストを使用しています",
         'NGRAM_HEADER': "3. N-gram設定",
@@ -192,7 +192,7 @@ TRANSLATIONS = {
         'PASS2_TEXT': "--- フェーズ2: JGRIと最終結果の計算 ---",
         'SUCCESS_LOAD': "JLPT単語リストがCSVから正常にロードされました！",
         'SUCCESS_TOKEN': "Fugashiトークナイザが正常にロードされました！",
-        'ANALYSIS_COMPLETE': "分析完了！",
+        'ANALYSIS_COMPLETE': "分析完了！", # <-- Key is here
         'NO_FILES': "有効なテキストファイルは処理されませんでした。",
         'EMPTY_FILE': "は空です。スキップされました。",
         'DECODE_ERROR': "デコードに失敗しました",
@@ -276,6 +276,12 @@ try:
     from fugashi import Tagger
 except ImportError:
     st.error("The 'fugashi' package is missing. Please check requirements.txt.")
+    st.stop()
+
+try:
+    import requests # Required for fetching preloaded corpora
+except ImportError:
+    st.error("The 'requests' package is missing. Please check requirements.txt.")
     st.stop()
 
 # --- Layout and Title ---
@@ -364,6 +370,7 @@ def process_excel_upload(uploaded_file):
             data = uploaded_file.read()
             df = pd.read_csv(io.BytesIO(data), header=None)
         else:
+            # Should not happen if the file type filter is correct, but safe guard.
             st.sidebar.warning(f"Unsupported file type for batch upload: .{file_extension}")
             return processed_files
         
@@ -445,7 +452,6 @@ def load_preloaded_corpus(url, name):
 
 # ===============================================
 # Core N-gram and KWIC Analysis
-# (Functions remain the same as the last verified version)
 # ===============================================
 
 def get_n_grams(tagged_nodes, n):
