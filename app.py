@@ -43,7 +43,7 @@ TRANSLATIONS = {
         'LANG_NAME': 'English',
         'TITLE': "🇯🇵 Japanese Lexical Profiler",
         'SUBTITLE': "Analyze lexical richness, structural complexity, and JLPT word coverage.",
-        'MANUAL_LINK': "https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing",
+        'MANUAL_LINK': "https://docs.google.com/document/d/1IxjUlzrX8PC30b8oKNK8vzxzj8piNurDPKguEZzhQyw/edit?usp=sharing",
         'MANUAL_TEXT': "User Guide and Results Interpretation",
         # Sidebar Upload
         'UPLOAD_HEADER': "1. Load Corpus Source", 
