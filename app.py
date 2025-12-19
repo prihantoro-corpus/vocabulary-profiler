@@ -1212,7 +1212,7 @@ def main():
 
         progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
         df_results = pd.DataFrame(results)
-,
+
             'Jreadability',
             df_results['JREAD']
         )
