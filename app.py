@@ -1450,7 +1450,7 @@ if uploaded_files_combined:
         "NA": st.column_config.NumberColumn("NA", help="Count of unique words NOT covered by N5-N1 lists.", width="small"),
     }
 st.markdown(f"### {T['JGRI_EXP_HEADER']}")
-    st.markdown("""
+st.markdown("""
         The JGRI is a composite, corpus-relative index estimating the grammatical and morphosyntactic complexity of the text. **Higher values indicate greater structural complexity.**
         
         **1. Components (What it measures):**
@@ -1515,7 +1515,7 @@ st.markdown(f"### {T['JGRI_EXP_HEADER']}")
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
         # Using a version of df_results without Streamlit column configs for clean export
         df_export = df_results.rename(columns={
-            "JGRI": "JGRI", "MMS": "MMS", "LD": "LD", "VPS": "VPS", "MPN": "MPN", 
+            "Jreadability": "Jreadability", "JGRI": "JGRI", "MMS": "MMS", "LD": "LD", "VPS": "VPS", "MPN": "MPN", 
             "Kanji_Density": "Kanji Density", "Script_Distribution": "Script Distribution", 
             "Tokens": "Tokens", "Types": "Types", "TTR": "TTR", "HDD": "HDD", "MTLD": "MTLD",
             "JLPT_N5": "JLPT N5", "JLPT_N4": "JLPT N4", "JLPT_N3": "JLPT N3", "JLPT_N2": "JLPT N2", "JLPT_N1": "JLPT N1", "NA": "NA"
