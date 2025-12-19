@@ -34,6 +34,49 @@ except ImportError:
     st.error("The 'fugashi' package is missing. Please check requirements.txt.")
     st.stop()
 
+
+# ===============================================
+# --- JREADABILITY (Japanese Readability Formula)
+# ===============================================
+
+def analyze_jreadability(text, tagged_nodes):
+    """Computes JReadability score and components."""
+    sentences = re.split(r'[。！？\n]', text.strip())
+    sentences = [s for s in sentences if s.strip()]
+    if not sentences:
+        return {"a": 0, "b": 0, "c": 0, "d": 0, "e": 0, "JREAD": None}
+
+    total_chars = sum(len(s) for s in sentences)
+    a = total_chars / len(sentences)
+
+    valid_nodes = [n for n in tagged_nodes if n.surface]
+    total_tokens = len(valid_nodes)
+    if total_tokens == 0:
+        return {"a": round(a,2), "b": 0, "c": 0, "d": 0, "e": 0, "JREAD": None}
+
+    verbs = sum(1 for n in valid_nodes if n.feature.pos1 == "動詞")
+    particles = sum(1 for n in valid_nodes if n.feature.pos1 == "助詞")
+
+    kango = sum(1 for n in valid_nodes if re.fullmatch(r"[\u4E00-\u9FFF]+", n.surface))
+    wago = sum(1 for n in valid_nodes if re.fullmatch(r"[\u3040-\u309F]+", n.surface))
+
+    b = (kango / total_tokens) * 100
+    c = (wago / total_tokens) * 100
+    d = (verbs / total_tokens) * 100
+    e = (particles / total_tokens) * 100
+
+    X = 11.724 - (0.056 * a) - (0.126 * b) - (0.042 * c) - (0.145 * d) - (0.044 * e)
+
+    return {
+        "a": round(a, 2),
+        "b": round(b, 2),
+        "c": round(c, 2),
+        "d": round(d, 2),
+        "e": round(e, 2),
+        "JREAD": round(X, 3)
+    }
+
+
 # ===============================================
 # --- 0. MULTILINGUAL CONFIGURATION (UPDATED) ---
 # ===============================================
@@ -1104,7 +1147,6 @@ if uploaded_files_combined:
         tagged_nodes = list(tagger(text))
         jgri_raw_components = analyze_jgri_components(text, tagged_nodes)
         jread = analyze_jreadability(text, tagged_nodes)
-
         
         # Store essential data for later analysis (JGRI, N-gram, WordCloud)
         corpus_data.append({
@@ -1144,7 +1186,12 @@ if uploaded_files_combined:
             "Filename": data['Filename'], "JGRI": jgri_values[i], "MMS": data['MMS'], "LD": data['LD'], "VPS": data['VPS'], "MPN": data['MPN'],
             "Kanji_Density": kanji_density, "Script_Distribution": f"K: {script_distribution['Kanji']}% | H: {script_distribution['Hiragana']}% | T: {script_distribution['Katakana']}% | O: {script_distribution['Other']}%",
             "Tokens": total_tokens, "Types": unique_tokens, "TTR": ttr, "HDD": hdd_value, "MTLD": mtld_value,
-        "JREAD": data.get("JREAD"), "JREAD_a": data.get("a"), "JREAD_b": data.get("b"), "JREAD_c": data.get("c"), "JREAD_d": data.get("d"), "JREAD_e": data.get("e"),
+            "JREAD": data.get("JREAD"),
+            "JREAD_a": data.get("a"),
+            "JREAD_b": data.get("b"),
+            "JREAD_c": data.get("c"),
+            "JREAD_d": data.get("d"),
+            "JREAD_e": data.get("e"),
         }
         for level in ALL_OUTPUT_LEVELS:
             result[level.replace(" ", "_")] = jlpt_counts.get(level, 0)
@@ -1476,57 +1523,3 @@ if uploaded_files_combined:
 else:
     st.header(T['UPLOAD_HEADER'])
     st.info(T['UPLD_TO_BEGIN'])
-
-
-
-# ===============================================
-# --- JREADABILITY (Japanese Readability Formula)
-# ===============================================
-
-def analyze_jreadability(text, tagged_nodes):
-    """
-    Computes JReadability components and final score.
-    a: mean sentence length (characters)
-    b: % Kango (漢語)
-    c: % Wago (和語)
-    d: % Verbs
-    e: % Particles (助詞)
-    """
-    # Sentence segmentation
-    sentences = re.split(r'[。！？\n]', text.strip())
-    sentences = [s for s in sentences if s.strip()]
-    if not sentences:
-        return {"a": 0, "b": 0, "c": 0, "d": 0, "e": 0, "JREAD": None}
-
-    total_chars = sum(len(s) for s in sentences)
-    a = total_chars / len(sentences)
-
-    # POS and lexical origin proxies
-    total_tokens = len([n for n in tagged_nodes if n.surface])
-    if total_tokens == 0:
-        return {"a": a, "b": 0, "c": 0, "d": 0, "e": 0, "JREAD": None}
-
-    verbs = sum(1 for n in tagged_nodes if n.feature.pos1 == "動詞")
-    particles = sum(1 for n in tagged_nodes if n.feature.pos1 == "助詞")
-
-    # Kango/Wago heuristic:
-    # Kanji-only words → Kango (proxy)
-    # Hiragana-only words → Wago (proxy)
-    kango = sum(1 for n in tagged_nodes if re.fullmatch(r"[\u4E00-\u9FFF]+", n.surface or ""))
-    wago = sum(1 for n in tagged_nodes if re.fullmatch(r"[\u3040-\u309F]+", n.surface or ""))
-
-    b = (kango / total_tokens) * 100
-    c = (wago / total_tokens) * 100
-    d = (verbs / total_tokens) * 100
-    e = (particles / total_tokens) * 100
-
-    X = 11.724 - (0.056 * a) - (0.126 * b) - (0.042 * c) - (0.145 * d) - (0.044 * e)
-
-    return {
-        "a": round(a, 2),
-        "b": round(b, 2),
-        "c": round(c, 2),
-        "d": round(d, 2),
-        "e": round(e, 2),
-        "JREAD": round(X, 3)
-    }
