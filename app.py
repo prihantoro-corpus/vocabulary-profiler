@@ -1212,8 +1212,7 @@ def main():
 
         progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
         df_results = pd.DataFrame(results)
-        df_results.insert(
-            df_results.columns.get_loc('JGRI'),
+,
             'Jreadability',
             df_results['JREAD']
         )
