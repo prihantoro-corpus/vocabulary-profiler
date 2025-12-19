@@ -1184,7 +1184,7 @@ if uploaded_files_combined:
 
         result = {
             "Filename": data['Filename'],
-            "JREAD": data.get("JREAD"),
+            "Jreadability": data.get("JREAD"),
             "JGRI": jgri_values[i],
             "MMS": data['MMS'],
             "LD": data['LD'],
@@ -1212,15 +1212,7 @@ if uploaded_files_combined:
         progress_bar.progress((i + 1) / len(corpus_data), text=f"PASS 2: Completed analysis for {data['Filename']}.")
 
     progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
-    df_results = pd.DataFrame(results)
-
-    # --- FIX: Always expose Jreadability column explicitly ---
-    if 'JREAD' in df_results.columns:
-        if 'Jreadability' not in df_results.columns:
-            insert_at = df_results.columns.get_loc('JGRI') if 'JGRI' in df_results.columns else len(df_results.columns)
-            df_results.insert(insert_at, 'Jreadability', df_results['JREAD'])
-
-    df_pos_percentage = pd.DataFrame(pos_percentage_results)
+    df_results = pd.DataFrame(results)    df_pos_percentage = pd.DataFrame(pos_percentage_results)
 
     # ===============================================
     # --- 3. N-gram Analysis Section ---
@@ -1429,7 +1421,14 @@ if uploaded_files_combined:
     st.subheader(T['SUMMARY_HEADER'])
     
     # --- Define Column Configuration for Tooltips and Formatting ---
-    column_configuration = {
+    
+column_configuration = {
+        "Jreadability": st.column_config.NumberColumn(
+            "Jreadability",
+            format="%.3f",
+            help="Japanese Readability Index (JReadability). Higher = easier text."
+        ),
+
         "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
         "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
         "MMS": st.column_config.NumberColumn("MMS", format="%.2f", help="Mean Morphemes per Sentence. Raw value for sentence length/integration cost."),
