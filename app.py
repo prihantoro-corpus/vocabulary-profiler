@@ -1213,6 +1213,12 @@ if uploaded_files_combined:
 
     progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
     df_results = pd.DataFrame(results)
+if 'JREAD' in df_results.columns and 'Jreadability' not in df_results.columns:
+    df_results.insert(
+        df_results.columns.get_loc('JGRI'),
+        'Jreadability',
+        df_results['JREAD']
+    )
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
 
     # ===============================================
