@@ -1212,7 +1212,8 @@ if uploaded_files_combined:
         progress_bar.progress((i + 1) / len(corpus_data), text=f"PASS 2: Completed analysis for {data['Filename']}.")
 
     progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
-    df_results = pd.DataFrame(results)    df_pos_percentage = pd.DataFrame(pos_percentage_results)
+    df_results = pd.DataFrame(results)
+    df_pos_percentage = pd.DataFrame(pos_percentage_results)
 
     # ===============================================
     # --- 3. N-gram Analysis Section ---
