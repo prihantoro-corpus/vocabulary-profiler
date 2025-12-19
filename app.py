@@ -36,11 +36,11 @@ except ImportError:
 
 
 # ===============================================
-# --- JREAD (Japanese Readability Formula)
+# --- JREADABILITY (Japanese Readability Formula)
 # ===============================================
 
-def analyze_JREAD(text, tagged_nodes):
-    """Computes JREAD score and components."""
+def analyze_jreadability(text, tagged_nodes):
+    """Computes JReadability score and components."""
     sentences = re.split(r'[。！？\n]', text.strip())
     sentences = [s for s in sentences if s.strip()]
     if not sentences:
@@ -1146,7 +1146,7 @@ if uploaded_files_combined:
         
         tagged_nodes = list(tagger(text))
         jgri_raw_components = analyze_jgri_components(text, tagged_nodes)
-        jread = analyze_JREAD(text, tagged_nodes)
+        jread = analyze_jreadability(text, tagged_nodes)
         
         # Store essential data for later analysis (JGRI, N-gram, WordCloud)
         corpus_data.append({
@@ -1213,10 +1213,10 @@ if uploaded_files_combined:
 
     progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
     df_results = pd.DataFrame(results)
-if 'JREAD' in df_results.columns and 'JREAD' not in df_results.columns:
+if 'JREAD' in df_results.columns and 'Jreadability' not in df_results.columns:
     df_results.insert(
         df_results.columns.get_loc('JGRI'),
-        'JREAD',
+        'Jreadability',
         df_results['JREAD']
     )
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
