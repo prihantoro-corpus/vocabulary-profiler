@@ -342,10 +342,8 @@ def main():
 
     # --- Layout and Title ---
     st.set_page_config(
-        page_title=T['TITLE'],
-        layout="wide"
-
-    st.title(T['TITLE'])
+    layout="wide"
+)
     st.markdown(T['SUBTITLE'])
 
     # ===============================================
