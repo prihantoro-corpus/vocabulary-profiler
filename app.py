@@ -353,7 +353,6 @@ def main():
     # Helper Functions - Caching for Performance
     # ===============================================
 
-    (show_spinner=T['LOADING_JLPT'])
     def load_jlpt_wordlist(T):
         """Loads all five JLPT wordlists."""
         jlpt_dict = {}
@@ -394,7 +393,6 @@ def main():
         st.success(T['SUCCESS_LOAD'])
         return jlpt_dict
 
-    (show_spinner=T['LOADING_FUGA'])
     def initialize_tokenizer(T):
         """Initializes the Fugashi Tagger."""
         try:
@@ -475,7 +473,6 @@ def main():
             st.sidebar.error(f"Error reading batch file: {e}. Please ensure it is correctly formatted with no header.")
             return []
 
-    (show_spinner=T['FETCHING_CORPUS'])
     def load_preloaded_corpus(url, name):
         """
         Fetches an Excel file directly from a URL, processes it, and returns
