@@ -1422,16 +1422,15 @@ if uploaded_files_combined:
     st.subheader(T['SUMMARY_HEADER'])
     
     # --- Define Column Configuration for Tooltips and Formatting ---
-    
-column_configuration = {
+    column_configuration = {
+        "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
+        "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
         "Jreadability": st.column_config.NumberColumn(
             "Jreadability",
             format="%.3f",
             help="Japanese Readability Index (JReadability). Higher = easier text."
         ),
 
-        "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
-        "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
         "MMS": st.column_config.NumberColumn("MMS", format="%.2f", help="Mean Morphemes per Sentence. Raw value for sentence length/integration cost."),
         "LD": st.column_config.NumberColumn("LD", format="%.3f", help="Lexical Density (Content Words / Total Morphemes). Raw value for information load."),
         "VPS": st.column_config.NumberColumn("VPS", format="%.2f", help="Verbs per Sentence. Raw value for clause load and structural density."),
@@ -1450,7 +1449,7 @@ column_configuration = {
         "JLPT_N1": st.column_config.NumberColumn("JLPT N1", help="Count of unique words covered by the N1 list.", width="small"),
         "NA": st.column_config.NumberColumn("NA", help="Count of unique words NOT covered by N5-N1 lists.", width="small"),
     }
-    st.markdown(f"### {T['JGRI_EXP_HEADER']}")
+st.markdown(f"### {T['JGRI_EXP_HEADER']}")
     st.markdown("""
         The JGRI is a composite, corpus-relative index estimating the grammatical and morphosyntactic complexity of the text. **Higher values indicate greater structural complexity.**
         
