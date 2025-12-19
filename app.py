@@ -502,8 +502,7 @@ def main():
                 
                 mock_files.append(
                     MockUploadedFile(filename, io.BytesIO(content.encode('utf-8')))
-
-            if not mock_files:
+if not mock_files:
                 st.error(f"Preloaded corpus '{name}' contains no valid text entries.")
                 return []
             
@@ -1055,7 +1054,6 @@ def main():
             type=["txt"],
             accept_multiple_files=True,
             key="input_uploader_txt",
-            help=T['UPLOAD_HELPER']
 
         st.sidebar.markdown("---")
 
@@ -1065,7 +1063,6 @@ def main():
             T['EXCEL_BUTTON'],
             type=["xlsx", "csv"], # Accept both XLSX and CSV
             key="input_uploader_excel",
-            help=T['EXCEL_NOTE']
 
         # Process local uploads
         if input_files_txt:
