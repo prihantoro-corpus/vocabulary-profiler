@@ -1117,7 +1117,7 @@ if uploaded_files_combined:
     # --- PASS 1 & 2: Data Processing ---
     
     st.header(T['ANALYSIS_HEADER'])
-    st.markdown(T['COVERAGE_NOTE'])
+st.markdown(T['COVERAGE_NOTE'])
     
     progress_bar = st.progress(0, text=T['PASS1_TEXT'])
     
@@ -1236,8 +1236,7 @@ if uploaded_files_combined:
     col_l, col_r = st.sidebar.columns(2)
     left_context_size = col_l.number_input(T['KWIC_LEFT'], min_value=1, max_value=20, value=7, key='left_context_size')
     right_context_size = col_r.number_input(T['KWIC_RIGHT'], min_value=1, max_value=20, value=7, key='right_context_size')
-    
-    st.markdown(f"{T['NGRAM_CURRENT']} {n_gram_size}-gram**")
+st.markdown(f"{T['NGRAM_CURRENT']} {n_gram_size}-gram**")
     st.info(T['NGRAM_WILDCARD_INFO'])
     
     # 1. Generate ALL N-grams across the corpus
@@ -1251,7 +1250,7 @@ if uploaded_files_combined:
     df_n_gram_freq = calculate_n_gram_frequency(all_n_grams_df)
 
     # 2. Dynamic Filter UI
-    st.markdown(f"##### {T['NGRAM_FILTER_HEADER']}")
+st.markdown(f"##### {T['NGRAM_FILTER_HEADER']}")
     filter_cols = st.columns(n_gram_size)
     
     current_filters = {}
@@ -1276,11 +1275,10 @@ if uploaded_files_combined:
     df_filtered_n_grams = apply_n_gram_filters(df_n_gram_freq, current_filters, n_gram_size)
     
     # 4. Display Frequency Results
-    st.markdown("---")
-    st.markdown(f"#### {T['NGRAM_FREQ_HEADER']}")
-    st.markdown(f"{T['NGRAM_TOTAL_UNIQUE']} {n_gram_size}-gram{T['NGRAM_MATCHING_FILTER']} {len(df_filtered_n_grams):,}")
-    
-    st.dataframe(
+st.markdown("---")
+st.markdown(f"#### {T['NGRAM_FREQ_HEADER']}")
+st.markdown(f"{T['NGRAM_TOTAL_UNIQUE']} {n_gram_size}-gram{T['NGRAM_MATCHING_FILTER']} {len(df_filtered_n_grams):,}")
+st.dataframe(
         df_filtered_n_grams[['N_gram', 'Frequency', 'Percentage']].head(50), 
         use_container_width=True,
         height=300,
@@ -1300,19 +1298,17 @@ if uploaded_files_combined:
             file_name=f"{n_gram_size}_gram_frequency_full.csv",
             mime="text/csv"
         )
-    
-    st.markdown("---")
+st.markdown("---")
 
     # 5. Generate and Display Concordance
-    st.markdown(f"#### {T['CONCORDANCE_HEADER']}")
+st.markdown(f"#### {T['CONCORDANCE_HEADER']}")
     
     # Pass all filters and context sizes to generate the KWIC list
     df_concordance = generate_concordance(corpus_data, current_filters, n_gram_size, left_context_size, right_context_size)
-
-    st.markdown(f"{T['CONCORDANCE_LINES']} {len(df_concordance):,} (based on N-gram filters)")
+st.markdown(f"{T['CONCORDANCE_LINES']} {len(df_concordance):,} (based on N-gram filters)")
 
     # Display KWIC Table
-    st.dataframe(
+st.dataframe(
         df_concordance.head(500), # Show more lines for context, still capped by Streamlit
         use_container_width=True,
         height=400,
@@ -1333,8 +1329,7 @@ if uploaded_files_combined:
             file_name="concordance_list_full.csv",
             mime="text/csv"
         )
-    
-    st.markdown("---")
+st.markdown("---")
 
     # ===============================================
     # --- 4. Visualizations (UPDATED) ---
@@ -1356,8 +1351,7 @@ if uploaded_files_combined:
             scripts_plot_file = "scripts_distribution.png"
             plot_scripts_distribution(df_results, filename=scripts_plot_file)
             st.image(scripts_plot_file, caption="Scripts Distribution (Kanji, Hiragana, Katakana, Other)")
-            
-        st.markdown("---")
+st.markdown("---")
         
         # --- Row 2: JGRI, MTLD, TTR ---
         col3, col4, col5 = st.columns(3)
@@ -1379,8 +1373,7 @@ if uploaded_files_combined:
             ttr_plot_file = "ttr_comparison.png"
             plot_ttr_comparison(df_results, filename=ttr_plot_file)
             st.image(ttr_plot_file, caption="Type-Token Ratio (TTR) Comparison")
-            
-        st.markdown("---")
+st.markdown("---")
         
         # --- Row 3: POS and Tokens ---
         col6, col7 = st.columns(2)
@@ -1394,26 +1387,23 @@ if uploaded_files_combined:
             token_count_plot_file = "token_count_comparison.png"
             plot_token_count_comparison(df_results, filename=token_count_plot_file)
             st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
-            
-        st.markdown("---")
+st.markdown("---")
         
         # --- Row 4: Rolling TTR Curve (Now hidden in an Expander) ---
         with st.expander(T['ROLLING_TTR_EXPANDER']):
-            st.markdown(T['ROLLING_TTR_NOTE'])
+st.markdown(T['ROLLING_TTR_NOTE'])
             rolling_ttr_plot_file = "rolling_ttr_curve.png"
             plot_rolling_ttr_curve(corpus_data, filename=rolling_ttr_plot_file)
             st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
-            
-        st.markdown("---")
+st.markdown("---")
 
         # --- Row 5: Word Cloud (NEW SECTION) ---
-        st.markdown(f"#### {T['WORDCLOUD_HEADER']}")
+st.markdown(f"#### {T['WORDCLOUD_HEADER']}")
         st.info(T['WORDCLOUD_NOTE'])
         word_cloud_file = "word_cloud.png"
         plot_word_cloud(corpus_data, filename=word_cloud_file)
         st.image(word_cloud_file, caption="Word Cloud (Token Frequency)")
-        
-        st.markdown("---")
+st.markdown("---")
 
 
     # ===============================================
@@ -1468,7 +1458,7 @@ st.markdown("""
     """)
     
     # Display Interpretation Table using st.dataframe for clean rendering
-    interpretation_data = {
+interpretation_data = {
         "JGRI Value": ["< -1.0", "-1.0 to 0", "0 to +1.0", "> +1.0"],
         "Interpretation": [
             "Very easy / Conversational", 
@@ -1478,9 +1468,8 @@ st.markdown("""
         ]
     }
     df_interpretation = pd.DataFrame(interpretation_data)
-    st.dataframe(df_interpretation.set_index('JGRI Value'), use_container_width=True)
-    
-    st.markdown("---")
+st.dataframe(df_interpretation.set_index('JGRI Value'), use_container_width=True)
+st.markdown("---")
 
     # Filter columns to ensure consistent order (including all components)
     sorted_columns = ["Filename", "JGRI", "MMS", "LD", "VPS", "MPN", "Kanji_Density", "Script_Distribution", "Tokens", "Types", "TTR", "HDD", "MTLD"]
@@ -1490,23 +1479,22 @@ st.markdown("""
     df_results = df_results[[col for col in sorted_columns if col in df_results.columns]]
     
     # Display the final table with column configuration (tooltips)
-    st.dataframe(df_results, column_config=column_configuration, use_container_width=True)
+st.dataframe(df_results, column_config=column_configuration, use_container_width=True)
 
     # --- 2C. DETAILED POS DISTRIBUTION TABLE ---
     st.subheader(T['POS_HEADER'])
-    st.markdown(T['POS_NOTE'])
+st.markdown(T['POS_NOTE'])
     
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
     df_pos_percentage = df_pos_percentage.set_index('Filename').fillna(0).T 
     df_pos_percentage.columns.name = f"POS Distribution ({T['POS_HEADER']})"
-
-    st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
+st.dataframe(df_pos_percentage.sort_index(), use_container_width=True, height=600)
     
     # --- 2D. RAW JGRI COMPONENTS TABLE (Keeping for debug/full data in Excel) ---
     with st.expander(T['RAW_JGRI_EXPANDER']):
-        st.markdown(T['RAW_JGRI_NOTE'])
+st.markdown(T['RAW_JGRI_NOTE'])
         df_raw_metrics.index.name = "Index" # Set index name for display
-        st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
+st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], use_container_width=True)
 
 
     # --- DOWNLOAD BUTTONS ---
