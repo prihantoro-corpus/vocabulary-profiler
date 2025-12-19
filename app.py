@@ -1430,6 +1430,7 @@ if 'JREAD' in df_results.columns and 'Jreadability' not in df_results.columns:
     # --- Define Column Configuration for Tooltips and Formatting ---
     column_configuration = {
         "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
+        "Jreadability": st.column_config.NumberColumn("Jreadability", format="%.3f", help="Japanese Readability Formula (JRead) Score."),
         "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
         "MMS": st.column_config.NumberColumn("MMS", format="%.2f", help="Mean Morphemes per Sentence. Raw value for sentence length/integration cost."),
         "LD": st.column_config.NumberColumn("LD", format="%.3f", help="Lexical Density (Content Words / Total Morphemes). Raw value for information load."),
