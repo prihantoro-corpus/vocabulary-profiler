@@ -353,7 +353,7 @@ def main():
     # Helper Functions - Caching for Performance
     # ===============================================
 
-    @st.cache_data(show_spinner=T['LOADING_JLPT'])
+    (show_spinner=T['LOADING_JLPT'])
     def load_jlpt_wordlist(T):
         """Loads all five JLPT wordlists."""
         jlpt_dict = {}
@@ -394,7 +394,7 @@ def main():
         st.success(T['SUCCESS_LOAD'])
         return jlpt_dict
 
-    @st.cache_resource(show_spinner=T['LOADING_FUGA'])
+    (show_spinner=T['LOADING_FUGA'])
     def initialize_tokenizer(T):
         """Initializes the Fugashi Tagger."""
         try:
@@ -475,7 +475,7 @@ def main():
             st.sidebar.error(f"Error reading batch file: {e}. Please ensure it is correctly formatted with no header.")
             return []
 
-    @st.cache_data(show_spinner=T['FETCHING_CORPUS'])
+    (show_spinner=T['FETCHING_CORPUS'])
     def load_preloaded_corpus(url, name):
         """
         Fetches an Excel file directly from a URL, processes it, and returns
@@ -952,7 +952,7 @@ def main():
         plt.savefig(filename); plt.close(fig); return filename
 
     # NEW FUNCTION: Get Japanese Font (Cached)
-    @st.cache_resource
+    
     def get_jp_font_path():
         """Fetches a high-quality Japanese font file for WordCloud."""
         # Using Noto Sans CJK JP Regular from GitHub for reliability
@@ -1215,7 +1215,6 @@ def main():
 
         progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
         df_results = pd.DataFrame(results)
-    if 'JREAD' in df_results.columns and 'Jreadability' not in df_results.columns:
         df_results.insert(
             df_results.columns.get_loc('JGRI'),
             'Jreadability',
