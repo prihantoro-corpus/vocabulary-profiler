@@ -1184,7 +1184,7 @@ if uploaded_files_combined:
 
         result = {
             "Filename": data['Filename'],
-            "Jreadability": data.get("JREAD"),
+            "JREAD": data.get("JREAD"),
             "JGRI": jgri_values[i],
             "MMS": data['MMS'],
             "LD": data['LD'],
