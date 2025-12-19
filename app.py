@@ -1213,12 +1213,13 @@ if uploaded_files_combined:
 
     progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
     df_results = pd.DataFrame(results)
-if 'JREAD' in df_results.columns and 'Jreadability' not in df_results.columns:
-    df_results.insert(
-        df_results.columns.get_loc('JGRI'),
-        'Jreadability',
-        df_results['JREAD']
-    )
+
+    # --- FIX: Always expose Jreadability column explicitly ---
+    if 'JREAD' in df_results.columns:
+        if 'Jreadability' not in df_results.columns:
+            insert_at = df_results.columns.get_loc('JGRI') if 'JGRI' in df_results.columns else len(df_results.columns)
+            df_results.insert(insert_at, 'Jreadability', df_results['JREAD'])
+
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
 
     # ===============================================
@@ -1430,7 +1431,6 @@ if 'JREAD' in df_results.columns and 'Jreadability' not in df_results.columns:
     # --- Define Column Configuration for Tooltips and Formatting ---
     column_configuration = {
         "Filename": st.column_config.TextColumn("Filename", help="Name of the uploaded text file."),
-        "Jreadability": st.column_config.NumberColumn("Jreadability", format="%.3f", help="Japanese Readability Formula (JRead) Score."),
         "JGRI": st.column_config.NumberColumn("JGRI", format="%.3f", help="Japanese Grammatical Readability Index. Higher = More complex (relative to the corpus)."),
         "MMS": st.column_config.NumberColumn("MMS", format="%.2f", help="Mean Morphemes per Sentence. Raw value for sentence length/integration cost."),
         "LD": st.column_config.NumberColumn("LD", format="%.3f", help="Lexical Density (Content Words / Total Morphemes). Raw value for information load."),
