@@ -344,7 +344,6 @@ def main():
     st.set_page_config(
         page_title=T['TITLE'],
         layout="wide"
-    )
 
     st.title(T['TITLE'])
     st.markdown(T['SUBTITLE'])
@@ -505,8 +504,7 @@ def main():
                 
                 mock_files.append(
                     MockUploadedFile(filename, io.BytesIO(content.encode('utf-8')))
-                )
-        
+
             if not mock_files:
                 st.error(f"Preloaded corpus '{name}' contains no valid text entries.")
                 return []
@@ -1006,7 +1004,6 @@ def main():
             min_font_size=10,
             # Custom regex to ensure Japanese characters are included as words/tokens
             regexp=r"[\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+" 
-        )
 
         # Generate word cloud from frequencies
         wc.generate_from_frequencies(token_counts)
@@ -1035,7 +1032,7 @@ def main():
     # --- Sidebar Configuration: DOC LINK AT TOP (Dynamic) ---
     st.sidebar.markdown(
         f"**Documentation:** [{T['MANUAL_TEXT']}]({T['MANUAL_LINK']})"
-    )
+
     st.sidebar.markdown("---")
 
     st.sidebar.header(T['UPLOAD_HEADER'])
@@ -1049,7 +1046,6 @@ def main():
             T['SOURCE_PRELOAD_2']
         ],
         key='source_selection_radio'
-    )
 
     uploaded_files_combined = []
 
@@ -1062,7 +1058,7 @@ def main():
             accept_multiple_files=True,
             key="input_uploader_txt",
             help=T['UPLOAD_HELPER']
-        )
+
         st.sidebar.markdown("---")
 
         # --- B. Upload Batch Excel/CSV File ---
@@ -1072,7 +1068,6 @@ def main():
             type=["xlsx", "csv"], # Accept both XLSX and CSV
             key="input_uploader_excel",
             help=T['EXCEL_NOTE']
-        )
 
         # Process local uploads
         if input_files_txt:
@@ -1213,7 +1208,6 @@ def main():
         progress_bar.empty(); st.success(T['ANALYSIS_COMPLETE'])
         df_results = pd.DataFrame(results)
 
-        )
         df_pos_percentage = pd.DataFrame(pos_percentage_results)
 
         # ===============================================
@@ -1229,8 +1223,7 @@ def main():
             options=[1, 2, 3, 4, 5],
             index=0,
             key='n_gram_size_radio'
-        )
-    
+
         # --- Sidebar KWIC Context Control ---
         st.sidebar.markdown("---")
         st.sidebar.subheader(T['KWIC_CONTEXT_HEADER'])
@@ -1265,14 +1258,13 @@ def main():
                     label=f"Word {i+1}", 
                     key=f'word_filter_{i}', 
                     placeholder=f"Filter word {i+1}"
-                )
+
                 # POS filter (Dropdown)
                 current_filters[f'pos_{i}'] = st.selectbox(
                     label=f"POS {i+1}", 
                     options=unique_pos_options, # This is generated once after PASS 2
                     key=f'pos_filter_{i}'
-                )
-    
+
         # 3. Apply Filters for Frequency Table
         df_filtered_n_grams = apply_n_gram_filters(df_n_gram_freq, current_filters, n_gram_size)
     
@@ -1290,8 +1282,7 @@ def main():
                 "Frequency": st.column_config.NumberColumn("Frequency", help="Total count of this specific N-gram."),
                 "Percentage": st.column_config.TextColumn("Percentage", help="Frequency relative to the total number of filtered N-grams."),
             }
-        )
-    
+
         # Download Button for N-gram list
         if not df_filtered_n_grams.empty:
             csv_n_grams = df_filtered_n_grams.to_csv(index=False).encode('utf-8')
@@ -1300,8 +1291,7 @@ def main():
                 data=csv_n_grams,
                 file_name=f"{n_gram_size}_gram_frequency_full.csv",
                 mime="text/csv"
-            )
-    
+
         st.markdown("---")
 
         # 5. Generate and Display Concordance
@@ -1323,8 +1313,7 @@ def main():
                 "Keyword(s)": st.column_config.TextColumn("Keyword(s)", help=f"{T['KWIC_HELP_KW']} {n_gram_size}-gram", width="large"),
                 "Right Context": st.column_config.TextColumn(f"{T['KWIC_RIGHT']} ({right_context_size})", help=f"{right_context_size} {T['KWIC_HELP_RIGHT']}", width="large"),
             }
-        )
-    
+
         # Download Button for Concordance
         if not df_concordance.empty:
             csv_concordance = df_concordance.to_csv(index=False).encode('utf-8')
@@ -1333,8 +1322,7 @@ def main():
                 data=csv_concordance,
                 file_name="concordance_list_full.csv",
                 mime="text/csv"
-            )
-    
+
         st.markdown("---")
 
         # ===============================================
@@ -1538,8 +1526,7 @@ def main():
             data=output.getvalue(),
             file_name="lexical_profile_results_full.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    
+
     else:
         st.header(T['UPLOAD_HEADER'])
         st.info(T['UPLD_TO_BEGIN'])
