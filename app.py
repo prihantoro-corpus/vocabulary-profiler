@@ -1450,8 +1450,7 @@ column_configuration = {
         "JLPT_N1": st.column_config.NumberColumn("JLPT N1", help="Count of unique words covered by the N1 list.", width="small"),
         "NA": st.column_config.NumberColumn("NA", help="Count of unique words NOT covered by N5-N1 lists.", width="small"),
     }
-    
-    st.markdown(f"### {T['JGRI_EXP_HEADER']}")
+st.markdown(f"### {T['JGRI_EXP_HEADER']}")
     st.markdown("""
         The JGRI is a composite, corpus-relative index estimating the grammatical and morphosyntactic complexity of the text. **Higher values indicate greater structural complexity.**
         
