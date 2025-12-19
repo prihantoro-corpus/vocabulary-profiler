@@ -13,26 +13,26 @@ import requests # Need requests to fetch external files
 try:
     from wordcloud import WordCloud
 except ImportError:
-    st.error("The 'wordcloud' package is missing. Please check requirements.txt.")
-    st.stop()
+st.error("The 'wordcloud' package is missing. Please check requirements.txt.")
+st.stop()
 try:
     from PIL import Image
 except ImportError:
-    st.error("The 'Pillow' package is missing. Please check requirements.txt.")
-    st.stop()
+st.error("The 'Pillow' package is missing. Please check requirements.txt.")
+st.stop()
     
 # --- Import Libraries (Assuming they are in requirements.txt) ---
 try:
     from lexicalrichness import LexicalRichness
 except ImportError:
-    st.error("The 'lexicalrichness' package is missing. Please check requirements.txt.")
-    st.stop()
+st.error("The 'lexicalrichness' package is missing. Please check requirements.txt.")
+st.stop()
 
 try:
     from fugashi import Tagger
 except ImportError:
-    st.error("The 'fugashi' package is missing. Please check requirements.txt.")
-    st.stop()
+st.error("The 'fugashi' package is missing. Please check requirements.txt.")
+st.stop()
 
 
 # ===============================================
@@ -366,21 +366,21 @@ def load_jlpt_wordlist(T):
             # return None 
             
             # --- FALLBACK FOR MISSING LOCAL FILES (DANGEROUS IN PROD, OK FOR DEMO) ---
-            st.warning(f"Attempting to fetch missing file: {filename}")
+st.warning(f"Attempting to fetch missing file: {filename}")
             try:
                 base_url = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
                 response = requests.get(base_url + filename)
                 response.raise_for_status()
                 df = pd.read_csv(io.StringIO(response.text), header=0, encoding='utf-8', keep_default_na=False)
             except Exception as e:
-                st.error(f"Error fetching/reading fallback CSV for '{filename}': {e}")
+st.error(f"Error fetching/reading fallback CSV for '{filename}': {e}")
                 return None
             # --- END FALLBACK ---
         else:
             try:
                 df = pd.read_csv(filename, header=0, encoding='utf-8', keep_default_na=False)
             except Exception as e:
-                st.error(f"Error reading CSV file '{filename}': {e}")
+st.error(f"Error reading CSV file '{filename}': {e}")
                 return None
 
         if df.empty:
@@ -390,7 +390,7 @@ def load_jlpt_wordlist(T):
             words = set(df[word_column].astype(str).tolist())
         jlpt_dict[level_name] = words
             
-    st.success(T['SUCCESS_LOAD'])
+st.success(T['SUCCESS_LOAD'])
     return jlpt_dict
 
 @st.cache_resource(show_spinner=T['LOADING_FUGA'])
@@ -445,11 +445,11 @@ def process_excel_upload(uploaded_file):
             df = pd.read_csv(io.BytesIO(data), header=None)
         else:
             # Should not happen if the file type filter is correct, but safe guard.
-            st.sidebar.warning(f"Unsupported file type for batch upload: .{file_extension}")
+st.sidebar.warning(f"Unsupported file type for batch upload: .{file_extension}")
             return processed_files
         
         if df.empty or df.shape[1] < 2:
-            st.sidebar.warning(f"File '{uploaded_file.name}' is empty or does not contain required columns (1 and 2).")
+st.sidebar.warning(f"File '{uploaded_file.name}' is empty or does not contain required columns (1 and 2).")
             return processed_files
 
         # Columns 0 and 1 correspond to the first two columns (Filename and Content)
@@ -467,11 +467,11 @@ def process_excel_upload(uploaded_file):
             processed_files.append((filename, io.BytesIO(content.encode('utf-8'))))
         
         if processed_files:
-            st.sidebar.success(f"Successfully loaded {len(processed_files)} texts from batch file.")
+st.sidebar.success(f"Successfully loaded {len(processed_files)} texts from batch file.")
         return processed_files
 
     except Exception as e:
-        st.sidebar.error(f"Error reading batch file: {e}. Please ensure it is correctly formatted with no header.")
+st.sidebar.error(f"Error reading batch file: {e}. Please ensure it is correctly formatted with no header.")
         return []
 
 @st.cache_data(show_spinner=T['FETCHING_CORPUS'])
@@ -491,7 +491,7 @@ def load_preloaded_corpus(url, name):
 
         # 3. Process the DataFrame (same logic as excel upload)
         if df.empty or df.shape[1] < 2:
-            st.error(f"Preloaded corpus '{name}' is empty or misformatted.")
+st.error(f"Preloaded corpus '{name}' is empty or misformatted.")
             return []
 
         df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
@@ -510,17 +510,17 @@ def load_preloaded_corpus(url, name):
             )
         
         if not mock_files:
-            st.error(f"Preloaded corpus '{name}' contains no valid text entries.")
+st.error(f"Preloaded corpus '{name}' contains no valid text entries.")
             return []
             
-        st.success(f"Successfully loaded {len(mock_files)} texts from preloaded corpus: {name}.")
+st.success(f"Successfully loaded {len(mock_files)} texts from preloaded corpus: {name}.")
         return mock_files
 
     except requests.exceptions.HTTPError as err:
-        st.error(f"Error fetching preloaded corpus '{name}': HTTP error {err.response.status_code}. Please check the URL.")
+st.error(f"Error fetching preloaded corpus '{name}': HTTP error {err.response.status_code}. Please check the URL.")
         return []
     except Exception as e:
-        st.error(f"Error processing preloaded corpus '{name}': {e}")
+st.error(f"Error processing preloaded corpus '{name}': {e}")
         return []
 
 
@@ -960,14 +960,14 @@ def get_jp_font_path():
 
     if not os.path.exists(font_path):
         try:
-            st.info("Fetching Japanese font for Word Cloud...")
+st.info("Fetching Japanese font for Word Cloud...")
             response = requests.get(font_url, stream=True)
             response.raise_for_status()
             with open(font_path, 'wb') as f:
                 f.write(response.content)
-            st.success("Japanese font loaded.")
+st.success("Japanese font loaded.")
         except Exception as e:
-            st.error(f"Could not download required Japanese font for Word Cloud: {e}. Word cloud may fail.")
+st.error(f"Could not download required Japanese font for Word Cloud: {e}. Word cloud may fail.")
             return None 
             
     return font_path
@@ -997,7 +997,7 @@ def plot_word_cloud(corpus_data, filename="word_cloud.png"):
         # Crude fallback, unlikely to support JP well
         font_path = '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'
     elif not font_path:
-        st.warning("Could not find a Japanese font. Word cloud may display incorrectly.")
+st.warning("Could not find a Japanese font. Word cloud may display incorrectly.")
 
     wc = WordCloud(
         font_path=font_path, 
@@ -1032,7 +1032,7 @@ jlpt_dict_to_use = load_jlpt_wordlist(T)
 tagger = initialize_tokenizer(T)
 
 if jlpt_dict_to_use is None or tagger is None:
-    st.stop() 
+st.stop() 
 
 # --- Sidebar Configuration: DOC LINK AT TOP (Dynamic) ---
 st.sidebar.markdown(
@@ -1057,7 +1057,7 @@ uploaded_files_combined = []
 
 if source_selection == T['SOURCE_UPLOAD']:
     # --- A. Upload Individual TXT Files ---
-    st.sidebar.markdown(f"**{T['UPLOAD_INDIVIDUAL']}**")
+st.sidebar.markdown(f"**{T['UPLOAD_INDIVIDUAL']}**")
     input_files_txt = st.sidebar.file_uploader(
         T['UPLOAD_BUTTON'],
         type=["txt"],
@@ -1065,10 +1065,10 @@ if source_selection == T['SOURCE_UPLOAD']:
         key="input_uploader_txt",
         help=T['UPLOAD_HELPER']
     )
-    st.sidebar.markdown("---")
+st.sidebar.markdown("---")
 
     # --- B. Upload Batch Excel/CSV File ---
-    st.sidebar.markdown(f"**{T['UPLOAD_BATCH']}**")
+st.sidebar.markdown(f"**{T['UPLOAD_BATCH']}**")
     input_files_excel = st.sidebar.file_uploader(
         T['EXCEL_BUTTON'],
         type=["xlsx", "csv"], # Accept both XLSX and CSV
@@ -1116,10 +1116,10 @@ if uploaded_files_combined:
     
     # --- PASS 1 & 2: Data Processing ---
     
-    st.header(T['ANALYSIS_HEADER'])
+st.header(T['ANALYSIS_HEADER'])
 st.markdown(T['COVERAGE_NOTE'])
     
-    progress_bar = st.progress(0, text=T['PASS1_TEXT'])
+progress_bar = st.progress(0, text=T['PASS1_TEXT'])
     
     # --- START OF FILE PROCESSING LOOP (Handles all file sources) ---
     for i, uploaded_file in enumerate(uploaded_files_combined):
@@ -1134,13 +1134,13 @@ st.markdown(T['COVERAGE_NOTE'])
         try:
              text = content_bytes.decode('utf-8')
         except UnicodeDecodeError:
-             st.error(f"{T['DECODE_ERROR']} {filename}. Ensure it is UTF-8 encoded.")
+st.error(f"{T['DECODE_ERROR']} {filename}. Ensure it is UTF-8 encoded.")
              progress_bar.progress((i + 1) / len(uploaded_files_combined))
              continue
              
         text = text.strip()
         if not text:
-            st.warning(f"File {filename} {T['EMPTY_FILE']}")
+st.warning(f"File {filename} {T['EMPTY_FILE']}")
             progress_bar.progress((i + 1) / len(uploaded_files_combined))
             continue
         
@@ -1219,10 +1219,10 @@ st.markdown(T['COVERAGE_NOTE'])
     # --- 3. N-gram Analysis Section ---
     # ===============================================
     
-    st.header(T['NGRAM_MAIN_HEADER'])
+st.header(T['NGRAM_MAIN_HEADER'])
 
     # --- Sidebar N-gram Control ---
-    st.sidebar.header(T['NGRAM_HEADER'])
+st.sidebar.header(T['NGRAM_HEADER'])
     n_gram_size = st.sidebar.radio(
         T['NGRAM_RADIO'],
         options=[1, 2, 3, 4, 5],
@@ -1231,13 +1231,13 @@ st.markdown(T['COVERAGE_NOTE'])
     )
     
     # --- Sidebar KWIC Context Control ---
-    st.sidebar.markdown("---")
-    st.sidebar.subheader(T['KWIC_CONTEXT_HEADER'])
+st.sidebar.markdown("---")
+st.sidebar.subheader(T['KWIC_CONTEXT_HEADER'])
     col_l, col_r = st.sidebar.columns(2)
     left_context_size = col_l.number_input(T['KWIC_LEFT'], min_value=1, max_value=20, value=7, key='left_context_size')
     right_context_size = col_r.number_input(T['KWIC_RIGHT'], min_value=1, max_value=20, value=7, key='right_context_size')
 st.markdown(f"{T['NGRAM_CURRENT']} {n_gram_size}-gram**")
-    st.info(T['NGRAM_WILDCARD_INFO'])
+st.info(T['NGRAM_WILDCARD_INFO'])
     
     # 1. Generate ALL N-grams across the corpus
     all_n_grams_df = pd.DataFrame(columns=['N_gram', 'POS_Sequence'])
@@ -1292,7 +1292,7 @@ st.dataframe(
     # Download Button for N-gram list
     if not df_filtered_n_grams.empty:
         csv_n_grams = df_filtered_n_grams.to_csv(index=False).encode('utf-8')
-        st.download_button(
+st.download_button(
             label=T['DOWNLOAD_NGRAM'].format(n=n_gram_size, count=len(df_filtered_n_grams)),
             data=csv_n_grams,
             file_name=f"{n_gram_size}_gram_frequency_full.csv",
@@ -1323,7 +1323,7 @@ st.dataframe(
     # Download Button for Concordance
     if not df_concordance.empty:
         csv_concordance = df_concordance.to_csv(index=False).encode('utf-8')
-        st.download_button(
+st.download_button(
             label=T['DOWNLOAD_KWIC'].format(count=len(df_concordance)),
             data=csv_concordance,
             file_name="concordance_list_full.csv",
@@ -1335,7 +1335,7 @@ st.markdown("---")
     # --- 4. Visualizations (UPDATED) ---
     # ===============================================
 
-    st.subheader(T['VISUAL_HEADER'])
+st.subheader(T['VISUAL_HEADER'])
     
     if len(df_results) >= 1:
         
@@ -1345,12 +1345,12 @@ st.markdown("---")
         with col1:
             jlpt_plot_file = "jlpt_coverage.png"
             plot_jlpt_coverage(df_results, filename=jlpt_plot_file)
-            st.image(jlpt_plot_file, caption="JLPT Vocabulary Coverage (Proportion of Unique Words)")
+st.image(jlpt_plot_file, caption="JLPT Vocabulary Coverage (Proportion of Unique Words)")
             
         with col2:
             scripts_plot_file = "scripts_distribution.png"
             plot_scripts_distribution(df_results, filename=scripts_plot_file)
-            st.image(scripts_plot_file, caption="Scripts Distribution (Kanji, Hiragana, Katakana, Other)")
+st.image(scripts_plot_file, caption="Scripts Distribution (Kanji, Hiragana, Katakana, Other)")
 st.markdown("---")
         
         # --- Row 2: JGRI, MTLD, TTR ---
@@ -1360,19 +1360,19 @@ st.markdown("---")
             if len(df_results) > 1:
                 jgri_plot_file = "jgri_comparison.png"
                 plot_jgri_comparison(df_results, filename=jgri_plot_file)
-                st.image(jgri_plot_file, caption="JGRI Comparison (Relative Grammatical Complexity)")
+st.image(jgri_plot_file, caption="JGRI Comparison (Relative Grammatical Complexity)")
             else:
-                st.info(T['JGRI_COMPARE_NOTE'])
+st.info(T['JGRI_COMPARE_NOTE'])
 
         with col4:
             mtld_plot_file = "mtld_comparison.png"
             plot_mtld_comparison(df_results, filename=mtld_plot_file)
-            st.image(mtld_plot_file, caption="MTLD Comparison (Lexical Diversity Score)")
+st.image(mtld_plot_file, caption="MTLD Comparison (Lexical Diversity Score)")
 
         with col5:
             ttr_plot_file = "ttr_comparison.png"
             plot_ttr_comparison(df_results, filename=ttr_plot_file)
-            st.image(ttr_plot_file, caption="Type-Token Ratio (TTR) Comparison")
+st.image(ttr_plot_file, caption="Type-Token Ratio (TTR) Comparison")
 st.markdown("---")
         
         # --- Row 3: POS and Tokens ---
@@ -1381,12 +1381,12 @@ st.markdown("---")
         with col6:
             pos_plot_file = "pos_comparison.png"
             plot_pos_comparison(df_pos_percentage, filename=pos_plot_file)
-            st.image(pos_plot_file, caption="Normalized POS Distribution (Top 10 Categories)")
+st.image(pos_plot_file, caption="Normalized POS Distribution (Top 10 Categories)")
             
         with col7:
             token_count_plot_file = "token_count_comparison.png"
             plot_token_count_comparison(df_results, filename=token_count_plot_file)
-            st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
+st.image(token_count_plot_file, caption="Total Token Count (Text Length)")
 st.markdown("---")
         
         # --- Row 4: Rolling TTR Curve (Now hidden in an Expander) ---
@@ -1394,22 +1394,22 @@ st.markdown("---")
 st.markdown(T['ROLLING_TTR_NOTE'])
             rolling_ttr_plot_file = "rolling_ttr_curve.png"
             plot_rolling_ttr_curve(corpus_data, filename=rolling_ttr_plot_file)
-            st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
+st.image(rolling_ttr_plot_file, caption="Rolling Mean TTR (Vocabulary Trend)")
 st.markdown("---")
 
         # --- Row 5: Word Cloud (NEW SECTION) ---
 st.markdown(f"#### {T['WORDCLOUD_HEADER']}")
-        st.info(T['WORDCLOUD_NOTE'])
+st.info(T['WORDCLOUD_NOTE'])
         word_cloud_file = "word_cloud.png"
         plot_word_cloud(corpus_data, filename=word_cloud_file)
-        st.image(word_cloud_file, caption="Word Cloud (Token Frequency)")
+st.image(word_cloud_file, caption="Word Cloud (Token Frequency)")
 st.markdown("---")
 
 
     # ===============================================
     # --- 5. Summary Tables ---
     # ===============================================
-    st.subheader(T['SUMMARY_HEADER'])
+st.subheader(T['SUMMARY_HEADER'])
     
     # --- Define Column Configuration for Tooltips and Formatting ---
     column_configuration = {
@@ -1482,7 +1482,7 @@ st.markdown("---")
 st.dataframe(df_results, column_config=column_configuration, use_container_width=True)
 
     # --- 2C. DETAILED POS DISTRIBUTION TABLE ---
-    st.subheader(T['POS_HEADER'])
+st.subheader(T['POS_HEADER'])
 st.markdown(T['POS_NOTE'])
     
     df_pos_percentage = pd.DataFrame(pos_percentage_results)
@@ -1516,7 +1516,7 @@ st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], 
         if 'df_n_gram_freq' in locals():
             df_n_gram_freq.to_excel(writer, index=False, sheet_name=f'{n_gram_size}_gram_Frequency')
         
-    st.download_button(
+st.download_button(
         label=T['DOWNLOAD_ALL'],
         data=output.getvalue(),
         file_name="lexical_profile_results_full.xlsx",
@@ -1524,5 +1524,5 @@ st.dataframe(df_raw_metrics.set_index('Filename')[['MMS', 'LD', 'VPS', 'MPN']], 
     )
     
 else:
-    st.header(T['UPLOAD_HEADER'])
-    st.info(T['UPLD_TO_BEGIN'])
+st.header(T['UPLOAD_HEADER'])
+st.info(T['UPLD_TO_BEGIN'])
