@@ -33,7 +33,7 @@ TOOLTIPS = {
     "Tokens": "Corpus size: Total number of all tokens (including punctuation).",
     "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
     "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability: 0.5-1.5: Upper-adv | 2.5-3.5: Upper-int | 4.5-5.5: Upper-elem.",
+    "Readability": "JReadability: 0.5-1.5: Upper-adv | 1.5-2.5: Lower-adv | 2.5-3.5: Upper-int | 3.5-4.5: Lower-int | 4.5-5.5: Upper-elem.",
     "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN."
 }
 
@@ -71,11 +71,13 @@ def analyze_text(text, filename, tagger, jlpt_lists):
     all_nodes = []
     for n in nodes:
         if n.surface:
+            # Fallback for lemma if it is None
+            lemma = n.feature.orth if hasattr(n.feature, 'orth') and n.feature.orth else n.surface
             all_nodes.append({
                 "surface": n.surface,
-                "lemma": n.feature.orth if hasattr(n.feature, 'orth') else n.surface,
+                "lemma": lemma,
                 "pos": n.feature.pos1,
-                "file": filename # Important for Concordance
+                "file": filename
             })
     
     valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
@@ -103,15 +105,17 @@ def analyze_text(text, filename, tagger, jlpt_lists):
         if not found: jlpt_counts["NA"] += 1
 
     wps = total_tokens_valid / num_sentences
-    pk, ph = (scripts["K"]/total_tokens_valid*100), (scripts["H"]/total_tokens_valid*100)
-    pv, pp = (pos_counts_raw["Verb (動詞)"]/total_tokens_valid*100), (pos_counts_raw["Particle (助詞)"]/total_tokens_valid*100)
+    pk = (scripts["K"]/total_tokens_valid*100) if total_tokens_valid > 0 else 0
+    ph = (scripts["H"]/total_tokens_valid*100) if total_tokens_valid > 0 else 0
+    pv = (pos_counts_raw["Verb (動詞)"]/total_tokens_valid*100) if total_tokens_valid > 0 else 0
+    pp = (pos_counts_raw["Particle (助詞)"]/total_tokens_valid*100) if total_tokens_valid > 0 else 0
     jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
 
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
         "all_tokens": all_nodes,
-        "stats": {"T_Valid": total_tokens_valid, "T_All": len(all_nodes), "WPS": round(wps, 2), "Read": round(jread, 3), "K%": round(pk, 1), "H%": round(ph, 1), "T%": round((scripts["T"]/total_tokens_valid*100), 1) if total_tokens_valid > 0 else 0, "O%": round((scripts["NA"]/total_tokens_valid*100), 1) if total_tokens_valid > 0 else 0},
+        "stats": {"T_Valid": total_tokens_valid, "T_All": len(all_nodes), "WPS": round(wps, 2), "Read": round(jread, 3), "K%": round(pk, 1), "H%": round(ph, 1), "T%": round(scripts["T"]/total_tokens_valid*100, 1) if total_tokens_valid > 0 else 0, "O%": round(scripts["NA"]/total_tokens_valid*100, 1) if total_tokens_valid > 0 else 0},
         "jlpt": jlpt_counts, 
         "pos_raw": pos_counts_raw,
         "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": pos_counts_raw["Verb (動詞)"]/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
@@ -130,7 +134,7 @@ if st.sidebar.text_input("Access Password", type="password") != "112233":
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
 st.title("📖 Japanese Text Vocabulary Profiler")
 
-# Sidebar Config
+# Sidebar
 st.sidebar.header("Advanced N-Gram Pattern")
 n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
 p_words, p_tags = [], []
@@ -199,7 +203,6 @@ if corpus:
         st.divider()
         st.header("🔍 Pattern Search & Concordance (KWIC)")
         
-        # Punctuation Skipped for matching
         filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
         t_filtered = len(filtered_toks)
         
@@ -209,14 +212,18 @@ if corpus:
             for idx in range(n_size):
                 w_p, t_p = p_words[idx].strip(), p_tags[idx]
                 reg = "^" + w_p.replace("*", ".*") + "$"
-                if w_p != "*" and not re.search(reg, window[idx]['surface']) and not re.search(reg, window[idx]['lemma']): match = False; break
+                
+                # SAFETY: Added "or ''" to prevent NoneType error in re.search
+                tok_surf = window[idx].get('surface') or ""
+                tok_lem = window[idx].get('lemma') or ""
+                
+                if w_p != "*" and not re.search(reg, tok_surf) and not re.search(reg, tok_lem): 
+                    match = False; break
                 if t_p != "Any" and window[idx]['pos'] != t_p: match = False; break
             
             if match:
                 gram_text = " ".join([t['surface'] for t in window])
                 matches.append(gram_text)
-                
-                # Context generation
                 l_context = "".join([t['surface'] for t in filtered_toks[max(0, j-left_context_size) : j]])
                 kwic_center = "".join([t['surface'] for t in window])
                 r_context = "".join([t['surface'] for t in filtered_toks[j+n_size : min(t_filtered, j+n_size+right_context_size)]])
@@ -251,8 +258,7 @@ if corpus:
         st.divider()
         st.header("📈 Visualizations")
         
-        # Word Cloud
-        st.subheader("☁️ Word Cloud (Content Words Only)")
+        st.subheader("☁️ Word Cloud")
         cloud_tokens = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
         font_p = "NotoSansJP[wght].ttf" 
         if cloud_tokens and os.path.exists(font_p):
