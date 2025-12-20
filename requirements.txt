@@ -1,8 +1,13 @@
 streamlit>=1.26.0    # CRITICAL: Ensures st.column_config features are supported (>=1.25.0)
 pandas
-openpyxl
-xlsxwriter           # Needed for writing the Excel output
 fugashi
+unidic-lite
+lexical-diversity
 lexicalrichness
-unidic-lite          # Fixes the MeCab pathing issue
+plotly
 wordcloud
+openpyxl
+requests
+matplotlib
+numpy
+Pillow
