@@ -30,11 +30,11 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Corpus size: Total number of all tokens (including punctuation).",
-    "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
-    "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability: 0.5-1.5: Upper-adv | 2.5-3.5: Upper-int | 4.5-5.5: Upper-elem.",
-    "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN."
+    "Tokens": "Corpus size: Total number of valid tokens.",
+    "TTR": "Type-Token Ratio.",
+    "MTLD": "Lexical Diversity (Length-independent).",
+    "Readability": "JReadability Score.",
+    "JGRI": "Relative Complexity Index."
 }
 
 # ===============================================
@@ -72,12 +72,7 @@ def analyze_text(text, filename, tagger, jlpt_lists):
     for n in nodes:
         if n.surface:
             lemma = n.feature.orth if hasattr(n.feature, 'orth') and n.feature.orth else n.surface
-            all_nodes.append({
-                "surface": n.surface,
-                "lemma": lemma,
-                "pos": n.feature.pos1,
-                "file": filename
-            })
+            all_nodes.append({"surface": n.surface, "lemma": lemma, "pos": n.feature.pos1, "file": filename})
     
     valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
@@ -92,7 +87,6 @@ def analyze_text(text, filename, tagger, jlpt_lists):
         else: scripts["NA"] += 1
 
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
-    
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
     for n in valid_nodes:
         found = False
@@ -126,7 +120,6 @@ def analyze_text(text, filename, tagger, jlpt_lists):
 
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
 
-# Sidebar Top: User Manual and File Upload
 st.sidebar.title("📚 USER'S MANUAL")
 st.sidebar.markdown("[Click here to view the Manual](https://docs.google.com/document/d/1SvfMQjsTm8uLI0PTwSOL1lTEiLhVUFArb6Q0lRHSiZU/edit?usp=sharing)")
 st.sidebar.divider()
@@ -143,15 +136,13 @@ else:
     df_pre = pd.read_excel(io.BytesIO(requests.get(url).content), header=None)
     corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
 
-# Sidebar Middle: Security
 if st.sidebar.text_input("Access Password", type="password") != "290683":
-    st.info("Please enter the password in the sidebar to unlock analysis.")
+    st.info("Enter the password in the sidebar to unlock.")
     st.stop()
 
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
 st.title("📖 Japanese Text Vocabulary Profiler")
 
-# Sidebar Bottom: Search Settings
 st.sidebar.divider()
 st.sidebar.header("🔍 Advanced Search Settings")
 n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 1)
@@ -171,7 +162,6 @@ if corpus:
     for item in corpus:
         data = analyze_text(item['text'], item['name'], tagger, jlpt_wordlists)
         global_toks_all.extend(data["all_tokens"])
-        
         t_v, t_a = data["stats"]["T_Valid"], data["stats"]["T_All"]
         lr = LexicalRichness(" ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])) if t_v > 10 else None
         
@@ -184,12 +174,11 @@ if corpus:
             **data["jgri_base"]
         }
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
-            row[lvl], row[f"{lvl}%"] = data["jlpt"][lvl], round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
+            row[f"{lvl}%"] = round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
         res_gen.append(row)
 
-        p_row = {"File": item['name'], "Total (Inc. Punc)": t_a}
+        p_row = {"File": item['name']}
         for label, count in data["pos_raw"].items():
-            p_row[f"{label} [Raw]"] = count
             p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
         res_pos.append(p_row)
 
@@ -202,11 +191,8 @@ if corpus:
     
     with tab_mat:
         st.header("Analysis Matrix")
-        cfg = {k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}
-        disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "WPS", "Kanji%", "Hira%", "Kata%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
-        st.dataframe(df_gen[disp], column_config=cfg, use_container_width=True)
+        st.dataframe(df_gen, use_container_width=True)
 
-        # --- N-GRAM & KWIC LOGIC ---
         st.divider()
         st.header("🔍 Pattern Search & Concordance (KWIC)")
         filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
@@ -216,17 +202,12 @@ if corpus:
         for j in range(t_filtered - n_size + 1):
             window, match = filtered_toks[j : j + n_size], True
             for idx in range(n_size):
-                w_p_input = p_words[idx].strip()
-                t_p_selection = p_tags[idx]
+                w_p_input, t_p_selection = p_words[idx].strip(), p_tags[idx]
                 target_pos_tag = t_p_selection.split(" ")[-1].strip("()") if "(" in t_p_selection else t_p_selection
-                
                 tok_surf, tok_lem, tok_pos = window[idx].get('surface') or "", window[idx].get('lemma') or "", window[idx].get('pos') or ""
-                word_match = (w_p_input == "*") or (re.search("^" + w_p_input.replace("*", ".*") + "$", tok_surf) or re.search("^" + w_p_input.replace("*", ".*") + "$", tok_lem))
-                pos_match = (t_p_selection == "Any (*)") or (target_pos_tag in tok_pos)
-                
-                if not (word_match and pos_match):
-                    match = False
-                    break
+                w_match = (w_p_input == "*") or (re.search("^" + w_p_input.replace("*", ".*") + "$", tok_surf) or re.search("^" + w_p_input.replace("*", ".*") + "$", tok_lem))
+                p_match = (t_p_selection == "Any (*)") or (target_pos_tag in tok_pos)
+                if not (w_match and p_match): match = False; break
             
             if match:
                 gram_text, gram_pos = " ".join([t['surface'] for t in window]), " + ".join([t['pos'] for t in window])
@@ -238,30 +219,25 @@ if corpus:
         if matches_data:
             c1, c2 = st.columns([1, 2])
             with c1:
-                st.subheader("N-Gram Frequencies")
                 df_counts = pd.DataFrame([{"Sequence": k[0], "POS": k[1], "Freq": v} for k, v in Counter(matches_data).most_common()])
                 st.dataframe(df_counts.head(15), use_container_width=True)
             with c2:
-                st.subheader("Concordance")
                 st.dataframe(pd.DataFrame(concordance_rows), use_container_width=True)
-        else:
-            st.warning("No matches found for this specific combination.")
+        else: st.warning("No matches found.")
 
-        # --- VISUALIZATIONS ---
         st.divider()
         st.header("📈 Visualizations")
         cloud_tokens = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
         font_p = "NotoSansJP[wght].ttf" 
         if cloud_tokens and os.path.exists(font_p):
             wordcloud = WordCloud(font_path=font_p, background_color="white", width=800, height=350, max_words=100).generate(" ".join(cloud_tokens))
-            fig_cloud, ax = plt.subplots(figsize=(10, 4))
-            ax.imshow(wordcloud, interpolation='bilinear'); ax.axis("off")
-            st.pyplot(fig_cloud)
-        
-        for k, t in [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]:
-            fig = px.bar(df_gen, x="File", y=key if key in df_gen.columns else k, title=t, template="plotly_white")
+            fig_cloud, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wordcloud, interpolation='bilinear'); ax.axis("off"); st.pyplot(fig_cloud)
+
+        v_list = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
+        for col_name, title_name in v_list:
+            fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True)
-            add_html_download_button(fig, k)
+            add_html_download_button(fig, col_name)
 
         df_s = df_gen.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
         fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
@@ -272,7 +248,7 @@ if corpus:
         st.plotly_chart(fig_j, use_container_width=True); add_html_download_button(fig_j, "JLPT_Dist")
 
     with tab_pos:
-        st.header("14-Tier POS Distribution")
+        st.header("14-Tier POS Distribution (%)")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
 else:
     st.info("Upload files to begin.")
