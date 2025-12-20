@@ -35,15 +35,15 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Corpus size: Total number of all morphemes/words detected.",
+    "Tokens": "Corpus size: Total number of all tokens (including punctuation).",
     "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
     "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability: 0.5-1.5: Upper-adv | 1.5-2.5: Lower-adv | 2.5-3.5: Upper-int | 3.5-4.5: Lower-int | 4.5-5.5: Upper-elem | 5.5-6.5: Lower-elem.",
+    "Readability": "JReadability: 0.5-1.5: Upper-adv | 1.5-2.5: Lower-adv | 2.5-3.5: Upper-int | 3.5-4.5: Lower-int | 4.5-5.5: Upper-elem.",
     "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN."
 }
 
 # ===============================================
-# --- 2. DOWNLOAD HANDLER ---
+# --- 2. UTILITY FUNCTIONS ---
 # ===============================================
 
 def add_html_download_button(fig, filename):
@@ -57,10 +57,6 @@ def add_html_download_button(fig, filename):
         file_name=f"{filename}.html",
         mime="text/html"
     )
-
-# ===============================================
-# --- 3. LINGUISTIC ENGINE ---
-# ===============================================
 
 @st.cache_data
 def load_jlpt_wordlists():
@@ -127,7 +123,7 @@ def analyze_text(text, tagger, jlpt_lists):
     }
 
 # ===============================================
-# --- 4. STREAMLIT APPLICATION ---
+# --- 3. STREAMLIT APPLICATION ---
 # ===============================================
 
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
@@ -139,6 +135,7 @@ if st.sidebar.text_input("Access Password", type="password") != "290683":
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
 st.title("📖 Japanese Text Vocabulary Profiler")
 
+# --- SIDEBAR CONFIG ---
 st.sidebar.header("Advanced N-Gram Pattern")
 n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
 p_words, p_tags = [], []
@@ -161,10 +158,10 @@ else:
     corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
 
 if corpus:
-    res_gen, res_pos, global_toks = [], [], []
+    res_gen, res_pos, global_toks_all = [], [], []
     for item in corpus:
         data = analyze_text(item['text'], tagger, jlpt_wordlists)
-        global_toks.extend(data["tokens_all"])
+        global_toks_all.extend(data["tokens_all"])
         t_v = data["stats"]["T_Valid"]
         t_a = data["stats"]["T_All"]
         lr = LexicalRichness(" ".join([t['surface'] for t in data["tokens_all"] if t['pos'] != "補助記号"])) if t_v > 10 else None
@@ -192,29 +189,57 @@ if corpus:
         df_gen[f"z_{c}"] = zscore(df_gen[c]) if df_gen[c].std() != 0 else 0
     df_gen["JGRI"] = df_gen[[f"z_{c}" for c in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
 
+    # --- TOP SECTION: TABLES AND N-GRAMS ---
     tab_mat, tab_pos = st.tabs(["📊 General Analysis", "📝 Full POS Distribution"])
     
     with tab_mat:
+        st.header("Analysis Matrix")
         cfg = {k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}
         disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "WPS", "Kanji%", "Hira%", "Kata%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
         st.dataframe(df_gen[disp], column_config=cfg, use_container_width=True)
 
+        # --- N-GRAM SEARCH SECTION (Moved Up) ---
+        st.divider()
+        st.header("Pattern Search Results")
+        filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
+        t_filtered = len(filtered_toks)
+        
+        matches = []
+        for j in range(t_filtered - n_size + 1):
+            window, match = filtered_toks[j : j + n_size], True
+            for idx in range(n_size):
+                w_p, t_p = p_words[idx].strip(), p_tags[idx]
+                reg = "^" + w_p.replace("*", ".*") + "$"
+                if w_p != "*" and not re.search(reg, window[idx]['surface']) and not re.search(reg, window[idx]['lemma']): match = False; break
+                if t_p != "Any" and window[idx]['pos'] != t_p: match = False; break
+            if match: matches.append(" ".join([t['surface'] for t in window]))
+        
+        if matches:
+            all_counts = Counter(matches).most_common()
+            df_full = pd.DataFrame(all_counts, columns=['Sequence', 'Raw Freq'])
+            df_full['PMW'] = df_full['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
+            st.write(f"Matches found: {len(matches)} (Unique sequences: {len(df_full)})")
+            st.write("Top 10 Preview:")
+            st.dataframe(df_full.head(10), use_container_width=True)
+            csv_data = df_full.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(label="📥 Download Full N-Gram List (CSV)", data=csv_data, file_name="full_ngram_results.csv", mime="text/csv")
+        else: st.warning("No sequences matched the specified pattern.")
+
+        # --- BOTTOM SECTION: VISUALIZATIONS ---
         st.divider()
         st.header("📈 Visualizations")
         
-        viz_keys = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("MTLD", "MTLD Diversity"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
-        for key, title in viz_keys:
+        v_keys = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("MTLD", "MTLD Diversity"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
+        for key, title in v_keys:
             fig = px.bar(df_gen, x="File", y=key, title=title, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True)
             add_html_download_button(fig, key)
 
-        # Scripts Stacked
         df_s = df_gen.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
         fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True)
         add_html_download_button(fig_s, "Script_Dist")
 
-        # JLPT Stacked
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
         st.plotly_chart(fig_j, use_container_width=True)
@@ -224,32 +249,4 @@ if corpus:
         st.header("14-Tier POS Distribution")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
 
-    # --- N-GRAM SEARCH ---
-    st.divider()
-    st.header("Pattern Search Results")
-    filtered_toks = [t for t in global_toks if t['pos'] != "補助記号"]
-    t_filtered = len(filtered_toks)
-    
-    matches = []
-    for j in range(t_filtered - n_size + 1):
-        window, match = filtered_toks[j : j + n_size], True
-        for idx in range(n_size):
-            w_p, t_p = p_words[idx].strip(), p_tags[idx]
-            reg = "^" + w_p.replace("*", ".*") + "$"
-            if w_p != "*" and not re.search(reg, window[idx]['surface']) and not re.search(reg, window[idx]['lemma']): match = False; break
-            if t_p != "Any" and window[idx]['pos'] != t_p: match = False; break
-        if match: matches.append(" ".join([t['surface'] for t in window]))
-    
-    if matches:
-        all_counts = Counter(matches).most_common()
-        df_full = pd.DataFrame(all_counts, columns=['Sequence', 'Raw Freq'])
-        df_full['PMW'] = df_full['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
-        
-        st.write(f"Matches found: {len(matches)} (Unique: {len(df_full)})")
-        st.write("Top 10 Preview:")
-        st.dataframe(df_full.head(10), use_container_width=True)
-        
-        csv_data = df_full.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(label="📥 Download Full N-Gram List (CSV)", data=csv_data, file_name="full_ngram_results.csv", mime="text/csv")
-    else: st.warning("No sequences matched.")
 else: st.info("Upload files or select data to begin.")
