@@ -21,20 +21,12 @@ GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-pr
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
 
 POS_FULL_MAP = {
-    "Noun (名詞)": "名詞",
-    "Verb (動詞)": "動詞",
-    "Particle (助詞)": "助詞",
-    "Adverb (副詞)": "副詞",
-    "Adjective (形容詞)": "形容詞",
-    "Adjectival Noun (形状詞)": "形状詞",
-    "Auxiliary Verb (助動詞)": "助動詞",
-    "Conjunction (接続詞)": "接続詞",
-    "Pronoun (代名詞)": "代名詞",
-    "Determiner (連体詞)": "連体詞",
-    "Interjection (感動詞)": "感動詞",
-    "Prefix (接頭辞)": "接頭辞",
-    "Suffix (接尾辞)": "接尾辞",
-    "Symbol/Punc (補助記号)": "補助記号"
+    "Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞",
+    "Adverb (副詞)": "副詞", "Adjective (形容詞)": "形容詞", "Adjectival Noun (形状詞)": "形状詞",
+    "Auxiliary Verb (助動詞)": "助動詞", "Conjunction (接続詞)": "接続詞",
+    "Pronoun (代名詞)": "代名詞", "Determiner (連体詞)": "連体詞",
+    "Interjection (感動詞)": "感動詞", "Prefix (接頭辞)": "接頭辞",
+    "Suffix (接尾辞)": "接尾辞", "Symbol/Punc (補助記号)": "補助記号"
 }
 
 TOOLTIPS = {
@@ -74,31 +66,37 @@ def get_jread_level(score):
     elif 5.5 <= score < 6.5: return "Lower-elementary"
     else: return "Other"
 
-def analyze_text(text, tagger, jlpt_lists):
+def analyze_text(text, filename, tagger, jlpt_lists):
     nodes = tagger(text)
-    all_nodes = [n for n in nodes if n.surface]
-    valid_nodes = [n for n in all_nodes if n.feature.pos1 != "補助記号"]
+    all_nodes = []
+    for n in nodes:
+        if n.surface:
+            all_nodes.append({
+                "surface": n.surface,
+                "lemma": n.feature.orth if hasattr(n.feature, 'orth') else n.surface,
+                "pos": n.feature.pos1,
+                "file": filename # Important for Concordance
+            })
     
+    valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
     num_sentences = len(sentences) if sentences else 1
-    total_tokens_all = len(all_nodes)
     total_tokens_valid = len(valid_nodes)
     
     scripts = {"K": 0, "H": 0, "T": 0, "NA": 0}
     for n in valid_nodes:
-        if re.search(r'[\u4e00-\u9faf]', n.surface): scripts["K"] += 1
-        elif re.search(r'[\u3040-\u309f]', n.surface): scripts["H"] += 1
-        elif re.search(r'[\u30a0-\u30ff]', n.surface): scripts["T"] += 1
+        if re.search(r'[\u4e00-\u9faf]', n['surface']): scripts["K"] += 1
+        elif re.search(r'[\u3040-\u309f]', n['surface']): scripts["H"] += 1
+        elif re.search(r'[\u30a0-\u30ff]', n['surface']): scripts["T"] += 1
         else: scripts["NA"] += 1
 
-    pos_counts_raw = {k: sum(1 for n in all_nodes if n.feature.pos1 == v) for k, v in POS_FULL_MAP.items()}
+    pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
     
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
     for n in valid_nodes:
-        lemma = n.feature.orth if hasattr(n.feature, 'orth') else n.surface
         found = False
         for lvl in ["N1", "N2", "N3", "N4", "N5"]:
-            if lemma in jlpt_lists[lvl]:
+            if n['lemma'] in jlpt_lists[lvl]:
                 jlpt_counts[lvl] += 1
                 found = True
                 break
@@ -107,13 +105,13 @@ def analyze_text(text, tagger, jlpt_lists):
     wps = total_tokens_valid / num_sentences
     pk, ph = (scripts["K"]/total_tokens_valid*100), (scripts["H"]/total_tokens_valid*100)
     pv, pp = (pos_counts_raw["Verb (動詞)"]/total_tokens_valid*100), (pos_counts_raw["Particle (助詞)"]/total_tokens_valid*100)
-    jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044))
+    jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
 
-    content_words = sum(1 for n in valid_nodes if n.feature.pos1 in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
+    content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
-        "tokens_all": [{"surface": n.surface, "lemma": n.feature.orth if hasattr(n.feature, 'orth') else n.surface, "pos": n.feature.pos1} for n in all_nodes],
-        "stats": {"T_Valid": total_tokens_valid, "T_All": total_tokens_all, "WPS": round(wps, 2), "Read": round(jread, 3), "K%": round(pk, 1), "H%": round(ph, 1), "T%": round((scripts["T"]/total_tokens_valid*100), 1), "O%": round((scripts["NA"]/total_tokens_valid*100), 1)},
+        "all_tokens": all_nodes,
+        "stats": {"T_Valid": total_tokens_valid, "T_All": len(all_nodes), "WPS": round(wps, 2), "Read": round(jread, 3), "K%": round(pk, 1), "H%": round(ph, 1), "T%": round((scripts["T"]/total_tokens_valid*100), 1) if total_tokens_valid > 0 else 0, "O%": round((scripts["NA"]/total_tokens_valid*100), 1) if total_tokens_valid > 0 else 0},
         "jlpt": jlpt_counts, 
         "pos_raw": pos_counts_raw,
         "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": pos_counts_raw["Verb (動詞)"]/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
@@ -126,13 +124,13 @@ def analyze_text(text, tagger, jlpt_lists):
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
 
 if st.sidebar.text_input("Access Password", type="password") != "112233":
-    st.info("This app is still in development. Enter password to unlock analysis if you are a tester, developer, or reviewer.")
+    st.info("Enter password to unlock analysis.")
     st.stop()
 
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
 st.title("📖 Japanese Text Vocabulary Profiler")
 
-# Sidebar N-Gram Config
+# Sidebar Config
 st.sidebar.header("Advanced N-Gram Pattern")
 n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
 p_words, p_tags = [], []
@@ -141,6 +139,10 @@ for i in range(n_size):
     c1, c2 = st.sidebar.columns(2)
     p_words.append(c1.text_input("Word/Regex", value="*", key=f"w_{i}"))
     p_tags.append(c2.selectbox("POS Tag", options=["Any (*)"] + list(POS_FULL_MAP.keys()), key=f"t_{i}").split(" ")[0])
+
+st.sidebar.header("Concordance Settings")
+left_context_size = st.sidebar.slider("Left Context (Words)", 1, 15, 5)
+right_context_size = st.sidebar.slider("Right Context (Words)", 1, 15, 5)
 
 source = st.sidebar.selectbox("Data Source", ["Upload Files", "DICO-JALF 30", "DICO-JALF ALL"])
 corpus = []
@@ -157,15 +159,14 @@ else:
 if corpus:
     res_gen, res_pos, global_toks_all = [], [], []
     for item in corpus:
-        data = analyze_text(item['text'], tagger, jlpt_wordlists)
-        global_toks_all.extend(data["tokens_all"])
-        t_v = data["stats"]["T_Valid"]
-        t_a = data["stats"]["T_All"]
-        lr = LexicalRichness(" ".join([t['surface'] for t in data["tokens_all"] if t['pos'] != "補助記号"])) if t_v > 10 else None
+        data = analyze_text(item['text'], item['name'], tagger, jlpt_wordlists)
+        global_toks_all.extend(data["all_tokens"])
+        t_v, t_a = data["stats"]["T_Valid"], data["stats"]["T_All"]
+        lr = LexicalRichness(" ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])) if t_v > 10 else None
         
         row = {
             "File": item['name'], "Tokens": t_v, 
-            "TTR": round(len(set([t['lemma'] for t in data["tokens_all"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
+            "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
             "MTLD": round(lr.mtld(), 2) if lr else 0, 
             "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]),
             "WPS": data["stats"]["WPS"], "Kanji%": data["stats"]["K%"], "Hira%": data["stats"]["H%"], "Kata%": data["stats"]["T%"], "Other%": data["stats"]["O%"],
@@ -194,12 +195,15 @@ if corpus:
         disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "WPS", "Kanji%", "Hira%", "Kata%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
         st.dataframe(df_gen[disp], column_config=cfg, use_container_width=True)
 
-        # --- N-GRAM SECTION (Skipping Punc) ---
+        # --- N-GRAM & CONCORDANCE (KWIC) SECTION ---
         st.divider()
-        st.header("Pattern Search Results")
+        st.header("🔍 Pattern Search & Concordance (KWIC)")
+        
+        # Punctuation Skipped for matching
         filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
         t_filtered = len(filtered_toks)
-        matches = []
+        
+        matches, concordance_rows = [], []
         for j in range(t_filtered - n_size + 1):
             window, match = filtered_toks[j : j + n_size], True
             for idx in range(n_size):
@@ -207,36 +211,56 @@ if corpus:
                 reg = "^" + w_p.replace("*", ".*") + "$"
                 if w_p != "*" and not re.search(reg, window[idx]['surface']) and not re.search(reg, window[idx]['lemma']): match = False; break
                 if t_p != "Any" and window[idx]['pos'] != t_p: match = False; break
-            if match: matches.append(" ".join([t['surface'] for t in window]))
+            
+            if match:
+                gram_text = " ".join([t['surface'] for t in window])
+                matches.append(gram_text)
+                
+                # Context generation
+                l_context = "".join([t['surface'] for t in filtered_toks[max(0, j-left_context_size) : j]])
+                kwic_center = "".join([t['surface'] for t in window])
+                r_context = "".join([t['surface'] for t in filtered_toks[j+n_size : min(t_filtered, j+n_size+right_context_size)]])
+                
+                concordance_rows.append({
+                    "Text File": window[0]['file'],
+                    "Left Context": l_context,
+                    "KWIC": kwic_center,
+                    "Right Context": r_context
+                })
         
         if matches:
-            all_counts = Counter(matches).most_common()
-            df_full = pd.DataFrame(all_counts, columns=['Sequence', 'Raw Freq'])
-            df_full['PMW'] = df_full['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
-            st.write(f"Matches found: {len(matches)} (Unique sequences: {len(df_full)})")
-            st.dataframe(df_full.head(10), use_container_width=True)
-            csv_data = df_full.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(label="📥 Download Full N-Gram List (CSV)", data=csv_data, file_name="full_ngram_results.csv", mime="text/csv")
-        else: st.warning("No sequences matched.")
+            c_freq, c_conc = st.columns([1, 2])
+            with c_freq:
+                st.subheader("N-Gram Frequencies")
+                df_counts = pd.DataFrame(Counter(matches).most_common(), columns=['Sequence', 'Raw Freq'])
+                df_counts['PMW'] = df_counts['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
+                st.dataframe(df_counts.head(10), use_container_width=True)
+                csv_ngrams = df_counts.to_csv(index=False).encode('utf-8-sig')
+                st.download_button("📥 Download All N-Grams", csv_ngrams, "all_ngrams.csv", "text/csv")
+                
+            with c_conc:
+                st.subheader("Concordance Table")
+                df_conc = pd.DataFrame(concordance_rows)
+                st.dataframe(df_conc.head(10), use_container_width=True)
+                csv_conc = df_conc.to_csv(index=False).encode('utf-8-sig')
+                st.download_button("📥 Download Full Concordance", csv_conc, "full_concordance.csv", "text/csv")
+        else:
+            st.warning("No sequences matched.")
 
         # --- VISUALIZATIONS ---
         st.divider()
         st.header("📈 Visualizations")
         
-        # Word Cloud Logic
-        st.subheader("☁️ Word Cloud (Top Content Words)")
+        # Word Cloud
+        st.subheader("☁️ Word Cloud (Content Words Only)")
         cloud_tokens = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
-        if cloud_tokens:
-            font_p = "NotoSansJP[wght].ttf" 
-            if os.path.exists(font_p):
-                wordcloud = WordCloud(font_path=font_p, background_color="white", width=800, height=400, max_words=100).generate(" ".join(cloud_tokens))
-                fig_cloud, ax = plt.subplots(figsize=(10, 5))
-                ax.imshow(wordcloud, interpolation='bilinear')
-                ax.axis("off")
-                st.pyplot(fig_cloud)
-            else:
-                st.error(f"Font file '{font_p}' not found. Please upload it to your repository.")
-
+        font_p = "NotoSansJP[wght].ttf" 
+        if cloud_tokens and os.path.exists(font_p):
+            wordcloud = WordCloud(font_path=font_p, background_color="white", width=800, height=350, max_words=100).generate(" ".join(cloud_tokens))
+            fig_cloud, ax = plt.subplots(figsize=(10, 4))
+            ax.imshow(wordcloud, interpolation='bilinear'); ax.axis("off")
+            st.pyplot(fig_cloud)
+        
         v_keys = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("MTLD", "MTLD Diversity"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
         for key, title in v_keys:
             fig = px.bar(df_gen, x="File", y=key, title=title, template="plotly_white")
@@ -256,4 +280,5 @@ if corpus:
     with tab_pos:
         st.header("14-Tier POS Distribution")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
-else: st.info("Upload files or select data to begin.")
+else:
+    st.info("Upload files or select data to begin.")
