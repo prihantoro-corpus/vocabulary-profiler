@@ -40,7 +40,7 @@ TOOLTIPS = {
     "Tokens": "Corpus size: Total number of all morphemes/words detected (including punctuation).",
     "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
     "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability: 0.5-1.5: Upper-adv | 2.5-3.5: Upper-int | 4.5-5.5: Upper-elem.",
+    "Readability": "JReadability: 0.5-1.5: Upper-adv | 1.5-2.5: Lower-adv | 2.5-3.5: Upper-int | 3.5-4.5: Lower-int | 4.5-5.5: Upper-elem | 5.5-6.5: Lower-elem.",
     "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN. Positive = More complex than corpus average."
 }
 
@@ -216,12 +216,17 @@ if corpus:
         st.header("14-Tier POS Distribution")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
 
-    # --- N-GRAM SEARCH ---
+    # --- N-GRAM SEARCH (Skipping Punctuation) ---
     st.divider()
     st.header("Pattern Search Results")
+    
+    # Pre-filter out punctuation symbols so they are skipped in sequence counting
+    filtered_toks = [t for t in global_toks if t['pos'] != "補助記号"]
+    t_filtered = len(filtered_toks)
+    
     matches = []
-    for j in range(len(global_toks) - n_size + 1):
-        window, match = global_toks[j : j + n_size], True
+    for j in range(t_filtered - n_size + 1):
+        window, match = filtered_toks[j : j + n_size], True
         for idx in range(n_size):
             w_p, t_p = p_words[idx].strip(), p_tags[idx]
             reg = "^" + w_p.replace("*", ".*") + "$"
@@ -231,7 +236,8 @@ if corpus:
     
     if matches:
         df_n = pd.DataFrame(Counter(matches).most_common(10), columns=['Sequence', 'Raw Freq'])
-        df_n['PMW'] = df_n['Raw Freq'].apply(lambda x: round((x / len(global_toks)) * 1_000_000, 2))
+        # PMW calculated against total non-punctuation tokens
+        df_n['PMW'] = df_n['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
         st.dataframe(df_n, use_container_width=True)
     else: st.warning("No sequences matched the specified pattern.")
 else: st.info("Upload files or select data to begin.")
