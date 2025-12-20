@@ -31,13 +31,11 @@ def get_jgri_interpretation(val):
     else: return "High complexity"
 
 def get_ttr_interpretation(val):
-    """General interpretation of Type-Token Ratio."""
     if val < 0.45: return "Low diversity (Repetitive)"
     elif 0.45 <= val < 0.65: return "Moderate diversity"
     else: return "High diversity (Varied)"
 
 def get_mtld_interpretation(val):
-    """MTLD Interpretation (higher values = more diverse)."""
     if val < 40: return "Basic/Limited"
     elif 40 <= val < 80: return "Intermediate/Standard"
     else: return "Advanced/Highly Diverse"
@@ -52,7 +50,7 @@ def analyze_text(text, tagger):
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
     num_sentences = len(sentences) if sentences else 1
     
-    # 2.1 POS & Scripts
+    # POS & Scripts
     verbs = [n for n in valid_nodes if n.feature.pos1 == "動詞"]
     particles = [n for n in valid_nodes if n.feature.pos1 == "助詞"]
     nouns = [n for n in valid_nodes if n.feature.pos1 == "名詞"]
@@ -66,7 +64,7 @@ def analyze_text(text, tagger):
         elif re.search(r'[\u30a0-\u30ff]', n.surface): scripts["T"] += 1
         else: scripts["O"] += 1
     
-    # 2.2 Rechecked JReadability Formula
+    # JReadability Formula (Rechecked)
     total_tokens = len(valid_nodes)
     wps = total_tokens / num_sentences
     pk = (scripts["K"] / total_tokens * 100) if total_tokens > 0 else 0
@@ -77,7 +75,7 @@ def analyze_text(text, tagger):
     jread_score = (11.724 + (wps * -0.056) + (pk * -0.126) + 
                    (pw * -0.042) + (pv * -0.145) + (pp * -0.044))
 
-    # 2.3 JGRI Components
+    # JGRI Components
     mms = total_tokens / num_sentences
     ld = len(content_words) / total_tokens if total_tokens > 0 else 0
     vps = len(verbs) / num_sentences
@@ -87,7 +85,8 @@ def analyze_text(text, tagger):
         "tokens": [n.surface for n in valid_nodes if n.feature.pos1 != "補助記号"],
         "jread": {
             "Score": round(jread_score, 3), "WPS": round(wps, 2), 
-            "K%": round(pk, 2), "W%": round(pw, 2), "V%": round(pv, 2), "P%": round(pp, 2)
+            "K_Full": round(pk, 2), "W_Full": round(pw, 2), 
+            "V_Full": round(pv, 2), "P_Full": round(pp, 2)
         },
         "jgri_raw": {"MMS": mms, "LD": ld, "VPS": vps, "MPN": mpn},
         "scripts": {k: round((v/sum(scripts.values()))*100, 1) for k, v in scripts.items()}
@@ -155,18 +154,22 @@ if corpus:
             "File": item['name'],
             "Tokens": len(data["tokens"]),
             "TTR": ttr_val,
-            "TTR_Desc": get_ttr_interpretation(ttr_val),
+            "TTR Interpretation": get_ttr_interpretation(ttr_val),
             "MTLD": mtld_val,
-            "MTLD_Desc": get_mtld_interpretation(mtld_val),
+            "MTLD Interpretation": get_mtld_interpretation(mtld_val),
             "Readability": data["jread"]["Score"],
             "J-Level": get_jread_level(data["jread"]["Score"]),
-            **data["jread"],
+            "WPS": data["jread"]["WPS"],
+            "Percentage Kango": data["jread"]["K_Full"],
+            "Percentage Wago": data["jread"]["W_Full"],
+            "Percentage Verbs": data["jread"]["V_Full"],
+            "Percentage Particles": data["jread"]["P_Full"],
             **data["jgri_raw"],
             **data["scripts"]
         }
         results.append(res)
 
-    # 5. JGRI Relative Normalization
+    # JGRI Relative Normalization
     df = pd.DataFrame(results)
     for col in ["MMS", "LD", "VPS", "MPN"]:
         df[f"z_{col}"] = zscore(df[col]) if df[col].std() != 0 else 0
@@ -176,17 +179,16 @@ if corpus:
     # --- MAIN TABLE ---
     st.header("Analysis Matrix")
     display_cols = [
-        "File", "Tokens", "TTR", "TTR_Desc", "MTLD", "MTLD_Desc", 
+        "File", "Tokens", "TTR", "TTR Interpretation", "MTLD", "MTLD Interpretation", 
         "Readability", "J-Level", "JGRI", "Complexity",
-        "WPS", "K%", "W%", "V%", "P%", "K", "H", "T", "O"
+        "WPS", "Percentage Kango", "Percentage Wago", "Percentage Verbs", "Percentage Particles",
+        "K", "H", "T", "O"
     ]
     st.dataframe(df[display_cols].rename(columns={
-        "TTR_Desc": "TTR Interpretation", 
-        "MTLD_Desc": "MTLD Interpretation",
         "K": "Kanji%", "H": "Hira%", "T": "Kata%", "O": "Other%"
     }), use_container_width=True)
 
-    # --- N-GRAM TABLES (BELOW MATRIX) ---
+    # --- N-GRAM TABLES ---
     st.divider()
     st.header("N-Gram Frequencies")
     
