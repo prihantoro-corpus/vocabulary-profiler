@@ -10,8 +10,21 @@ from lexicalrichness import LexicalRichness
 from scipy.stats import zscore
 
 # ===============================================
-# --- 1. INTERPRETATION LOGIC ---
+# --- 1. INTERPRETATION & TOOLTIPS ---
 # ===============================================
+
+TOOLTIPS = {
+    "Tokens": "Corpus size: The total number of all morphemes/words detected by the tokenizer (including repetitions).",
+    "TTR": "Type-Token Ratio. The ratio of unique words to total words. Higher ratios indicate more diverse vocabulary.",
+    "MTLD": "Measuring Textual Lexical Diversity. A robust measure of vocabulary variety that is not affected by text length.",
+    "Readability": "JReadability Score: A formula-based assessment of how easy or difficult the text is for Japanese learners.",
+    "JGRI": "Japanese Grammar Readability Index: Measures relative grammatical complexity. Positive scores are more complex than the corpus average.",
+    "WPS": "Words Per Sentence: The average number of tokens (words/morphemes) found in each sentence.",
+    "Kango": "Percentage of Sino-Japanese words (words written in Kanji). High density usually indicates academic or formal text.",
+    "Wago": "Percentage of Native Japanese words (usually written in Hiragana). High density indicates conversational or simpler text.",
+    "Verbs": "Percentage of verbs in the text. Verbs often increase the dynamic nature but also the structural complexity of a sentence.",
+    "Particles": "Percentage of grammatical particles (助詞). These are essential for Japanese syntax and indicate grammatical density."
+}
 
 def get_jread_level(score):
     if score is None: return "N/A"
@@ -21,8 +34,7 @@ def get_jread_level(score):
     elif 3.5 <= score < 4.5: return "Lower-intermediate"
     elif 4.5 <= score < 5.5: return "Upper-elementary"
     elif 5.5 <= score < 6.5: return "Lower-elementary"
-    elif score >= 6.5: return "Beginner"
-    else: return "Expert/Technical"
+    else: return "Beginner"
 
 def get_jgri_interpretation(val):
     if val < -1.0: return "Very easy / Conversational"
@@ -64,7 +76,7 @@ def analyze_text(text, tagger):
         elif re.search(r'[\u30a0-\u30ff]', n.surface): scripts["T"] += 1
         else: scripts["O"] += 1
     
-    # JReadability Formula (Rechecked)
+    # Formula Calculation (11.724 Constant)
     total_tokens = len(valid_nodes)
     wps = total_tokens / num_sentences
     pk = (scripts["K"] / total_tokens * 100) if total_tokens > 0 else 0
@@ -75,12 +87,6 @@ def analyze_text(text, tagger):
     jread_score = (11.724 + (wps * -0.056) + (pk * -0.126) + 
                    (pw * -0.042) + (pv * -0.145) + (pp * -0.044))
 
-    # JGRI Components
-    mms = total_tokens / num_sentences
-    ld = len(content_words) / total_tokens if total_tokens > 0 else 0
-    vps = len(verbs) / num_sentences
-    mpn = len(adverbs) / len(nouns) if len(nouns) > 0 else 0
-
     return {
         "tokens": [n.surface for n in valid_nodes if n.feature.pos1 != "補助記号"],
         "jread": {
@@ -88,28 +94,12 @@ def analyze_text(text, tagger):
             "K_Full": round(pk, 2), "W_Full": round(pw, 2), 
             "V_Full": round(pv, 2), "P_Full": round(pp, 2)
         },
-        "jgri_raw": {"MMS": mms, "LD": ld, "VPS": vps, "MPN": mpn},
+        "jgri_raw": {"MMS": total_tokens / num_sentences, "LD": len(content_words) / total_tokens, "VPS": len(verbs) / num_sentences, "MPN": len(adverbs) / len(nouns) if len(nouns) > 0 else 0},
         "scripts": {k: round((v/sum(scripts.values()))*100, 1) for k, v in scripts.items()}
     }
 
 # ===============================================
-# --- 3. DATA FETCHING ---
-# ===============================================
-
-PRELOADED_CORPORA = {
-    "DICO-JALF ALL": "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%20all.xlsx",
-    "DICO-JALF 30 Files Only": "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%2030%20files%20only.xlsx",
-}
-
-def fetch_preloaded(url):
-    try:
-        resp = requests.get(url)
-        df = pd.read_excel(io.BytesIO(resp.content), header=None)
-        return [{"name": str(r[0]), "text": str(r[1])} for _, r in df.iterrows()]
-    except: return []
-
-# ===============================================
-# --- 4. STREAMLIT UI ---
+# --- 3. UI LAYOUT & DATA FETCHING ---
 # ===============================================
 
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
@@ -127,6 +117,11 @@ st.sidebar.header("N-Gram Config")
 n_exact = st.sidebar.number_input("Exact N value", 1, 5, 1)
 n_range = st.sidebar.text_input("Range N values (e.g., 2, 4)", "")
 
+PRELOADED_CORPORA = {
+    "DICO-JALF ALL": "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%20all.xlsx",
+    "DICO-JALF 30 Files Only": "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%2030%20files%20only.xlsx",
+}
+
 source = st.sidebar.selectbox("Data Source", ["Upload Files", "DICO-JALF 30", "DICO-JALF ALL"])
 corpus = []
 if source == "Upload Files":
@@ -134,13 +129,16 @@ if source == "Upload Files":
     if up:
         for f in up: corpus.append({"name": f.name, "text": f.read().decode('utf-8')})
 else:
-    url_key = "DICO-JALF ALL" if "ALL" in source else "DICO-JALF 30 Files Only"
-    corpus = fetch_preloaded(PRELOADED_CORPORA[url_key])
+    try:
+        url_key = "DICO-JALF ALL" if "ALL" in source else "DICO-JALF 30 Files Only"
+        resp = requests.get(PRELOADED_CORPORA[url_key])
+        df_pre = pd.read_excel(io.BytesIO(resp.content), header=None)
+        corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
+    except: st.error("Failed to load pre-loaded corpus.")
 
 if corpus:
     tagger = Tagger()
-    results = []
-    global_tokens = []
+    results, global_tokens = [], []
 
     for item in corpus:
         data = analyze_text(item['text'], tagger)
@@ -150,7 +148,7 @@ if corpus:
         ttr_val = round(len(set(data['tokens']))/len(data['tokens']), 3) if data['tokens'] else 0
         mtld_val = round(lr.mtld(), 2) if lr and len(data["tokens"]) > 10 else 0
         
-        res = {
+        results.append({
             "File": item['name'],
             "Tokens": len(data["tokens"]),
             "TTR": ttr_val,
@@ -164,43 +162,47 @@ if corpus:
             "Percentage Wago": data["jread"]["W_Full"],
             "Percentage Verbs": data["jread"]["V_Full"],
             "Percentage Particles": data["jread"]["P_Full"],
-            **data["jgri_raw"],
-            **data["scripts"]
-        }
-        results.append(res)
+            **data["jgri_raw"], **data["scripts"]
+        })
 
-    # JGRI Relative Normalization
     df = pd.DataFrame(results)
     for col in ["MMS", "LD", "VPS", "MPN"]:
         df[f"z_{col}"] = zscore(df[col]) if df[col].std() != 0 else 0
     df["JGRI"] = df[[f"z_{col}" for col in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
     df["Complexity"] = df["JGRI"].apply(get_jgri_interpretation)
 
-    # --- MAIN TABLE ---
+    # --- MAIN TABLE WITH TOOLTIPS ---
     st.header("Analysis Matrix")
-    display_cols = [
-        "File", "Tokens", "TTR", "TTR Interpretation", "MTLD", "MTLD Interpretation", 
-        "Readability", "J-Level", "JGRI", "Complexity",
-        "WPS", "Percentage Kango", "Percentage Wago", "Percentage Verbs", "Percentage Particles",
-        "K", "H", "T", "O"
-    ]
-    st.dataframe(df[display_cols].rename(columns={
-        "K": "Kanji%", "H": "Hira%", "T": "Kata%", "O": "Other%"
-    }), use_container_width=True)
+    
+    column_config = {
+        "Tokens": st.column_config.NumberColumn("Tokens", help=TOOLTIPS["Tokens"]),
+        "TTR": st.column_config.NumberColumn("TTR", help=TOOLTIPS["TTR"]),
+        "MTLD": st.column_config.NumberColumn("MTLD", help=TOOLTIPS["MTLD"]),
+        "Readability": st.column_config.NumberColumn("Readability", help=TOOLTIPS["Readability"]),
+        "JGRI": st.column_config.NumberColumn("JGRI", help=TOOLTIPS["JGRI"]),
+        "WPS": st.column_config.NumberColumn("WPS", help=TOOLTIPS["WPS"]),
+        "Percentage Kango": st.column_config.NumberColumn("Percentage Kango", help=TOOLTIPS["Kango"]),
+        "Percentage Wago": st.column_config.NumberColumn("Percentage Wago", help=TOOLTIPS["Wago"]),
+        "Percentage Verbs": st.column_config.NumberColumn("Percentage Verbs", help=TOOLTIPS["Verbs"]),
+        "Percentage Particles": st.column_config.NumberColumn("Percentage Particles", help=TOOLTIPS["Particles"]),
+    }
+
+    display_cols = ["File", "Tokens", "TTR", "TTR Interpretation", "MTLD", "MTLD Interpretation", "Readability", "J-Level", "JGRI", "Complexity", "WPS", "Percentage Kango", "Percentage Wago", "Percentage Verbs", "Percentage Particles", "K", "H", "T", "O"]
+    st.dataframe(df[display_cols].rename(columns={"K": "Kanji%", "H": "Hira%", "T": "Kata%", "O": "Other%"}), 
+                 column_config=column_config, use_container_width=True)
 
     # --- N-GRAM TABLES ---
     st.divider()
     st.header("N-Gram Frequencies")
     
-    requested_ns = [n_exact]
+    req_ns = [n_exact]
     if n_range:
         try:
             parts = [int(x.strip()) for x in n_range.split(",") if x.strip()]
-            if len(parts) >= 2:
-                requested_ns.extend(list(range(min(parts), max(parts) + 1)))
+            if len(parts) >= 2: req_ns.extend(list(range(min(parts), max(parts) + 1)))
         except: pass
     
-    unique_ns = sorted(list(set([n for n in requested_ns if 1 <= n <= 5])))
+    unique_ns = sorted(list(set([n for n in req_ns if 1 <= n <= 5])))
     cols = st.columns(len(unique_ns))
     for i, n in enumerate(unique_ns):
         with cols[i]:
