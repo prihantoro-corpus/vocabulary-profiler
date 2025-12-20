@@ -30,26 +30,22 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Total valid linguistic tokens (excl. punctuation). Samples >100 are most reliable.",
+    "Tokens": "Total valid linguistic tokens (excl. punctuation).",
     "TTR": "Unique Words / Total Words. <0.45: Repetitive; 0.45-0.65: Balanced; >0.65: High Variation.",
     "MTLD": "Lexical Diversity (length-independent). <40: Basic; 40-80: Intermediate; >80: Advanced.",
     "Readability": "JReadability (Lee & Hasebe). 0.5-1.5: U-Adv; 2.5-3.5: U-Int; 4.5-5.5: U-Elem.",
     "J-Level": "Pedagogical level assigned based on the JReadability score.",
     "JGRI": "Grammatical Complexity (Z-score average). Values centered around 0.0.",
     "JGRI Interp": "Interpretation: < -0.5: Simple; -0.5 to 0.5: Standard; > 0.5: Complex/Nested.",
-    "WPS": "Mean number of words per sentence. <10: Simple; 10-20: Standard; >20: Complex.",
-    "K(raw)": "Raw count of Kango (Chinese-origin words/Kanji tokens).",
-    "K%": "Percentage of Kango. High % (>30%) indicates formal/academic registers.",
-    "W(raw)": "Raw count of Wago (Native Japanese words/Hiragana tokens).",
-    "W%": "Percentage of Wago. High % (>60%) indicates elementary or oral style.",
-    "V(raw)": "Raw count of Verbs in the text.",
-    "V%": "Percentage of Verbs.",
-    "P(raw)": "Raw count of Particles (wa, ga, ni, etc.).",
-    "P%": "Percentage of Particles.",
-    "T(raw)": "Raw count of Katakana tokens.",
-    "T%": "Percentage of Katakana. Indicates loanword density.",
+    "WPS": "Mean words per sentence. <10: Simple; 10-20: Standard; >20: Complex.",
+    "K(raw)": "Raw count of Kanji characters (used in JReadability formula).",
+    "H(raw)": "Raw count of Hiragana characters.",
+    "T(raw)": "Raw count of Katakana characters.",
+    "O(raw)": "Raw count of Other characters (numbers, roman letters, etc.).",
+    "V(raw)": "Raw count of Verbs.",
+    "P(raw)": "Raw count of Particles.",
     "N1%": "% of words in JLPT N1 list.",
-    "NA%": "Tokens not in N1-N5 lists (names, slang, technical terms)."
+    "NA%": "Tokens not in N1-N5 lists (Proper nouns, slang, technical terms)."
 }
 
 # ===============================================
@@ -99,13 +95,13 @@ def analyze_text(text, filename, tagger, jlpt_lists):
     num_sentences = len(sentences) if sentences else 1
     total_tokens_valid = len(valid_nodes)
     
-    # Script counting
-    k_raw, w_raw, t_raw, na_raw = 0, 0, 0, 0
+    # Precise script counting
+    k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0
     for n in valid_nodes:
         if re.search(r'[\u4e00-\u9faf]', n['surface']): k_raw += 1
-        elif re.search(r'[\u3040-\u309f]', n['surface']): w_raw += 1
+        elif re.search(r'[\u3040-\u309f]', n['surface']): h_raw += 1
         elif re.search(r'[\u30a0-\u30ff]', n['surface']): t_raw += 1
-        else: na_raw += 1
+        else: o_raw += 1
 
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
     v_raw = pos_counts_raw["Verb (動詞)"]
@@ -123,22 +119,25 @@ def analyze_text(text, filename, tagger, jlpt_lists):
 
     wps = total_tokens_valid / num_sentences
     pk = (k_raw/total_tokens_valid*100) if total_tokens_valid > 0 else 0
-    pw = (w_raw/total_tokens_valid*100) if total_tokens_valid > 0 else 0
+    ph = (h_raw/total_tokens_valid*100) if total_tokens_valid > 0 else 0
     pv = (v_raw/total_tokens_valid*100) if total_tokens_valid > 0 else 0
     pp = (p_raw/total_tokens_valid*100) if total_tokens_valid > 0 else 0
     pt = (t_raw/total_tokens_valid*100) if total_tokens_valid > 0 else 0
+    po = (o_raw/total_tokens_valid*100) if total_tokens_valid > 0 else 0
     
-    # Readability Formula: 11.724 + (wps*-0.056) + (pk*-0.126) + (pw*-0.042) + (pv*-0.145) + (pp*-0.044)
-    jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (pw * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
+    jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
         "all_tokens": all_nodes,
         "stats": {
             "T_Valid": total_tokens_valid, "T_All": len(all_nodes), "WPS": round(wps, 2), "Read": round(jread, 3), 
-            "K_raw": k_raw, "K%": round(pk, 1), "W_raw": w_raw, "W%": round(pw, 1), 
-            "V_raw": v_raw, "V%": round(pv, 1), "P_raw": p_raw, "P%": round(pp, 1),
-            "T_raw": t_raw, "T%": round(pt, 1)
+            "K_raw": k_raw, "K%": round(pk, 1), 
+            "H_raw": h_raw, "H%": round(ph, 1), 
+            "T_raw": t_raw, "T%": round(pt, 1),
+            "O_raw": o_raw, "O%": round(po, 1),
+            "V_raw": v_raw, "V%": round(pv, 1), 
+            "P_raw": p_raw, "P%": round(pp, 1)
         },
         "jlpt": jlpt_counts, "pos_raw": pos_counts_raw,
         "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": v_raw/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
@@ -199,10 +198,11 @@ if corpus:
             "MTLD": round(lr.mtld(), 2) if lr else 0, "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]), 
             "WPS": data["stats"]["WPS"], 
             "K(raw)": data["stats"]["K_raw"], "K%": data["stats"]["K%"], 
-            "W(raw)": data["stats"]["W_raw"], "W%": data["stats"]["W%"],
+            "H(raw)": data["stats"]["H_raw"], "H%": data["stats"]["H%"],
+            "T(raw)": data["stats"]["T_raw"], "T%": data["stats"]["T%"],
+            "O(raw)": data["stats"]["O_raw"], "O%": data["stats"]["O%"],
             "V(raw)": data["stats"]["V_raw"], "V%": data["stats"]["V%"],
             "P(raw)": data["stats"]["P_raw"], "P%": data["stats"]["P%"],
-            "T(raw)": data["stats"]["T_raw"], "T%": data["stats"]["T%"],
             **data["jgri_base"]
         }
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
@@ -226,7 +226,8 @@ if corpus:
         st.header("Analysis Matrix")
         cols_to_show = [
             "File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
-            "K(raw)", "K%", "W(raw)", "W%", "V(raw)", "V%", "P(raw)", "P%", "T(raw)", "T%"
+            "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
+            "V(raw)", "V%", "P(raw)", "P%"
         ] + [f"N{i}%" for i in range(1,6)] + ["NA%"]
         
         st.dataframe(df_gen[cols_to_show], column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
@@ -282,15 +283,13 @@ if corpus:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True); add_html_download_button(fig, col_name)
 
+        # Corrected Script Distribution
         
-        
-        # FIXED: Script Distribution chart
-        df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "W%", "T%"], var_name="Script", value_name="%")
-        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution (K-Kanji, W-Wago/Hira, T-Kata)", barmode="stack", template="plotly_white")
+        df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
+        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution (Kanji, Hira, Kata, Other)", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True); add_html_download_button(fig_s, "Script_Dist")
 
         
-
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
         st.plotly_chart(fig_j, use_container_width=True); add_html_download_button(fig_j, "JLPT_Dist")
