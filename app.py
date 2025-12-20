@@ -30,38 +30,26 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Total valid linguistic tokens (excl. punctuation). Samples >100 are more reliable.",
-    "TTR": "Type-Token Ratio (Unique Words / Total). <0.45: Repetitive; 0.45-0.65: Balanced; >0.65: High Variation.",
-    "MTLD": "Lexical Diversity (Length-independent). <40: Basic; 40-80: Intermediate; >80: Advanced.",
+    "Tokens": "Total valid linguistic tokens (excl. punctuation).",
+    "TTR": "Unique Words / Total Words. <0.45: Repetitive; 0.45-0.65: Balanced; >0.65: High Variation.",
+    "MTLD": "Lexical Diversity (length-independent). <40: Basic; 40-80: Intermediate; >80: Advanced.",
     "Readability": "JReadability Score. Lower is harder. 0.5-1.5: U-Adv; 2.5-3.5: U-Int; 4.5-5.5: U-Elem.",
     "J-Level": "Pedagogical level assigned based on the JReadability score.",
     "JGRI": "Relative Grammatical Complexity (Z-score average). Values centered around 0.0.",
     "JGRI Interp": "Interpretation: < -0.5: Simple; -0.5 to 0.5: Standard; > 0.5: Complex/Nested.",
-    "WPS": "Mean words per sentence. <10: Simple/Direct; 10-20: Standard; >20: Complex.",
-    "K(raw)": "Raw count of Kango (Chinese-origin words/Kanji tokens).",
-    "K%": "Percentage of Kango. High % (>30%) indicates formal/academic registers.",
-    "H(raw)": "Raw count of Wago (Native Japanese words/Hiragana tokens).",
-    "H%": "Percentage of Wago. High % (>60%) indicates elementary or oral style.",
-    "T(raw)": "Raw count of Katakana tokens (loanwords/technical terms).",
-    "T%": "Percentage of Katakana. Higher % indicates technical or modern loanword density.",
-    "O(raw)": "Raw count of 'Other' characters (Roman letters, numbers, etc.).",
+    "WPS": "Mean words per sentence. <10: Simple; 10-20: Standard; >20: Complex.",
+    "K(raw)": "Raw count of Kanji characters.",
+    "K%": "Percentage of Kanji characters.",
+    "H(raw)": "Raw count of Hiragana characters.",
+    "H%": "Percentage of Hiragana characters.",
+    "T(raw)": "Raw count of Katakana characters.",
+    "T%": "Percentage of Katakana characters.",
+    "O(raw)": "Raw count of Other characters (numbers, latin, etc.).",
     "O%": "Percentage of Other characters.",
-    "V(raw)": "Raw count of Verbs identified in the text.",
-    "V%": "Percentage of Verbs. Influences the 'action' density and readability.",
-    "P(raw)": "Raw count of Particles (markers like wa, ga, ni, wo).",
-    "P%": "Percentage of Particles. Indicates grammatical expliciteness.",
-    "N1(raw)": "Raw count of tokens matching JLPT N1 (Advanced) wordlist.",
-    "N1%": "Percentage of tokens matching JLPT N1 level.",
-    "N2(raw)": "Raw count of tokens matching JLPT N2 (Upper-Intermediate) wordlist.",
-    "N2%": "Percentage of tokens matching JLPT N2 level.",
-    "N3(raw)": "Raw count of tokens matching JLPT N3 (Intermediate) wordlist.",
-    "N3%": "Percentage of tokens matching JLPT N3 level.",
-    "N4(raw)": "Raw count of tokens matching JLPT N4 (Elementary) wordlist.",
-    "N4%": "Percentage of tokens matching JLPT N4 level.",
-    "N5(raw)": "Raw count of tokens matching JLPT N5 (Introductory) wordlist.",
-    "N5%": "Percentage of tokens matching JLPT N5 level.",
-    "NA(raw)": "Raw count of tokens not found in JLPT N1-N5 wordlists.",
-    "NA%": "Percentage of tokens not found in JLPT wordlists (names, slang, tech terms)."
+    "V(raw)": "Raw count of Verbs.",
+    "V%": "Percentage of Verbs.",
+    "P(raw)": "Raw count of Particles.",
+    "P%": "Percentage of Particles."
 }
 
 # ===============================================
@@ -203,6 +191,7 @@ if corpus:
         row = {
             "File": item['name'], "Tokens": t_v, "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
             "MTLD": round(lr.mtld(), 2) if lr else 0, "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]), 
+            "JGRI": 0, "JGRI Interp": "", # Placeholders for ordering
             "WPS": data["stats"]["WPS"], 
             "K(raw)": data["stats"]["K_raw"], "K%": data["stats"]["K%"], 
             "H(raw)": data["stats"]["H_raw"], "H%": data["stats"]["H%"],
@@ -232,7 +221,6 @@ if corpus:
     
     with tab_mat:
         st.header("Analysis Matrix")
-        # Logical grouping of columns
         cols_to_show = [
             "File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
             "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
@@ -283,7 +271,6 @@ if corpus:
         st.header("📈 Visualizations")
         cloud_toks = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
         
-        
         if cloud_toks and os.path.exists("NotoSansJP[wght].ttf"):
             wc = WordCloud(font_path="NotoSansJP[wght].ttf", background_color="white", width=800, height=350).generate(" ".join(cloud_toks))
             fig_cloud, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wc); ax.axis("off"); st.pyplot(fig_cloud)
@@ -294,10 +281,13 @@ if corpus:
             st.plotly_chart(fig, use_container_width=True); add_html_download_button(fig, col_name)
 
         
+        
+        # FIXED Visualization: Using K%, H%, T%, O%
         df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
         fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True); add_html_download_button(fig_s, "Script_Dist")
 
+        
         
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
