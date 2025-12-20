@@ -125,8 +125,8 @@ def analyze_text(text, tagger, jlpt_lists):
 
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
 
-if st.sidebar.text_input("Access Password", type="password") != "290683":
-    st.info("Enter password to unlock analysis.")
+if st.sidebar.text_input("Access Password", type="password") != "112233":
+    st.info("This app is still in development. Enter password to unlock analysis if you are a tester, developer, or reviewer.")
     st.stop()
 
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
