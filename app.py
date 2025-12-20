@@ -5,10 +5,13 @@ import re
 import requests
 import numpy as np
 import plotly.express as px
+import matplotlib.pyplot as plt
 from collections import Counter
 from fugashi import Tagger
 from lexicalrichness import LexicalRichness
 from scipy.stats import zscore
+from wordcloud import WordCloud
+import os
 
 # ===============================================
 # --- 1. CONFIGURATION & MAPPINGS ---
@@ -38,25 +41,19 @@ TOOLTIPS = {
     "Tokens": "Corpus size: Total number of all tokens (including punctuation).",
     "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
     "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability: 0.5-1.5: Upper-adv | 1.5-2.5: Lower-adv | 2.5-3.5: Upper-int | 3.5-4.5: Lower-int | 4.5-5.5: Upper-elem.",
+    "Readability": "JReadability: 0.5-1.5: Upper-adv | 2.5-3.5: Upper-int | 4.5-5.5: Upper-elem.",
     "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN."
 }
 
 # ===============================================
-# --- 2. UTILITY FUNCTIONS ---
+# --- 2. UTILITY & LINGUISTIC FUNCTIONS ---
 # ===============================================
 
 def add_html_download_button(fig, filename):
-    """Saves Plotly chart as HTML string."""
     buffer = io.StringIO()
     fig.write_html(buffer, include_plotlyjs='cdn')
     html_bytes = buffer.getvalue().encode()
-    st.download_button(
-        label=f"📥 Download {filename} (Interactive HTML)",
-        data=html_bytes,
-        file_name=f"{filename}.html",
-        mime="text/html"
-    )
+    st.download_button(label=f"📥 Download {filename} (HTML)", data=html_bytes, file_name=f"{filename}.html", mime="text/html")
 
 @st.cache_data
 def load_jlpt_wordlists():
@@ -135,7 +132,7 @@ if st.sidebar.text_input("Access Password", type="password") != "290683":
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
 st.title("📖 Japanese Text Vocabulary Profiler")
 
-# --- SIDEBAR CONFIG ---
+# Sidebar N-Gram Config
 st.sidebar.header("Advanced N-Gram Pattern")
 n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
 p_words, p_tags = [], []
@@ -189,7 +186,6 @@ if corpus:
         df_gen[f"z_{c}"] = zscore(df_gen[c]) if df_gen[c].std() != 0 else 0
     df_gen["JGRI"] = df_gen[[f"z_{c}" for c in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
 
-    # --- TOP SECTION: TABLES AND N-GRAMS ---
     tab_mat, tab_pos = st.tabs(["📊 General Analysis", "📝 Full POS Distribution"])
     
     with tab_mat:
@@ -198,12 +194,11 @@ if corpus:
         disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "WPS", "Kanji%", "Hira%", "Kata%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
         st.dataframe(df_gen[disp], column_config=cfg, use_container_width=True)
 
-        # --- N-GRAM SEARCH SECTION (Moved Up) ---
+        # --- N-GRAM SECTION (Skipping Punc) ---
         st.divider()
         st.header("Pattern Search Results")
         filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
         t_filtered = len(filtered_toks)
-        
         matches = []
         for j in range(t_filtered - n_size + 1):
             window, match = filtered_toks[j : j + n_size], True
@@ -219,16 +214,29 @@ if corpus:
             df_full = pd.DataFrame(all_counts, columns=['Sequence', 'Raw Freq'])
             df_full['PMW'] = df_full['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
             st.write(f"Matches found: {len(matches)} (Unique sequences: {len(df_full)})")
-            st.write("Top 10 Preview:")
             st.dataframe(df_full.head(10), use_container_width=True)
             csv_data = df_full.to_csv(index=False).encode('utf-8-sig')
             st.download_button(label="📥 Download Full N-Gram List (CSV)", data=csv_data, file_name="full_ngram_results.csv", mime="text/csv")
-        else: st.warning("No sequences matched the specified pattern.")
+        else: st.warning("No sequences matched.")
 
-        # --- BOTTOM SECTION: VISUALIZATIONS ---
+        # --- VISUALIZATIONS ---
         st.divider()
         st.header("📈 Visualizations")
         
+        # Word Cloud Logic
+        st.subheader("☁️ Word Cloud (Top Content Words)")
+        cloud_tokens = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
+        if cloud_tokens:
+            font_p = "NotoSansJP[wght].ttf" 
+            if os.path.exists(font_p):
+                wordcloud = WordCloud(font_path=font_p, background_color="white", width=800, height=400, max_words=100).generate(" ".join(cloud_tokens))
+                fig_cloud, ax = plt.subplots(figsize=(10, 5))
+                ax.imshow(wordcloud, interpolation='bilinear')
+                ax.axis("off")
+                st.pyplot(fig_cloud)
+            else:
+                st.error(f"Font file '{font_p}' not found. Please upload it to your repository.")
+
         v_keys = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("MTLD", "MTLD Diversity"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
         for key, title in v_keys:
             fig = px.bar(df_gen, x="File", y=key, title=title, template="plotly_white")
@@ -248,5 +256,4 @@ if corpus:
     with tab_pos:
         st.header("14-Tier POS Distribution")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
-
 else: st.info("Upload files or select data to begin.")
