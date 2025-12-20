@@ -127,14 +127,13 @@ st.title("📖 Japanese Text Vocabulary Profiler")
 
 # Sidebar
 st.sidebar.header("Advanced N-Gram Pattern")
-n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
+n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 1) # Default to 1 for your request
 p_words, p_tags = [], []
 for i in range(n_size):
     st.sidebar.write(f"**Position {i+1}**")
     c1, c2 = st.sidebar.columns(2)
     p_words.append(c1.text_input("Word/Regex", value="*", key=f"w_{i}"))
-    # Match criteria: "Any (*)" will only check word box. Specified tag will check POS.
-    p_tags.append(c2.selectbox("POS Tag", options=["Any (*)"] + list(POS_FULL_MAP.keys()), key=f"t_{i}").split(" ")[0])
+    p_tags.append(c2.selectbox("POS Tag", options=["Any (*)"] + list(POS_FULL_MAP.keys()), key=f"t_{i}"))
 
 st.sidebar.header("Concordance Settings")
 left_context_size = st.sidebar.slider("Left Context (Words)", 1, 15, 5)
@@ -157,29 +156,16 @@ if corpus:
     for item in corpus:
         data = analyze_text(item['text'], item['name'], tagger, jlpt_wordlists)
         global_toks_all.extend(data["all_tokens"])
-        t_v, t_a = data["stats"]["T_Valid"], data["stats"]["T_All"]
-        row = {"File": item['name'], "Tokens": t_v, "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0, "Readability": data["stats"]["Read"], "WPS": data["stats"]["WPS"], "Kanji%": data["stats"]["K%"], "Hira%": data["stats"]["H%"], "Kata%": data["stats"]["T%"], "Other%": data["stats"]["O%"], **data["jgri_base"]}
-        for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
-            row[lvl], row[f"{lvl}%"] = data["jlpt"][lvl], round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
-        res_gen.append(row)
-        p_row = {"File": item['name'], "Total (Inc. Punc)": t_a}
-        for label, count in data["pos_raw"].items():
-            p_row[f"{label} [Raw]"] = count
-            p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
-        res_pos.append(p_row)
-
-    df_gen = pd.DataFrame(res_gen)
-    for c in ["MMS", "LD", "VPS", "MPN"]:
-        df_gen[f"z_{c}"] = zscore(df_gen[c]) if df_gen[c].std() != 0 else 0
-    df_gen["JGRI"] = df_gen[[f"z_{c}" for c in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
+        t_v = data["stats"]["T_Valid"]
+        res_gen.append({"File": item['name'], "Tokens": t_v, "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0, "Readability": data["stats"]["Read"], **data["jgri_base"]})
+        res_pos.append({"File": item['name'], **{f"{k} [%]": round((v/data['stats']['T_All']*100), 2) for k,v in data['pos_raw'].items()}})
 
     tab_mat, tab_pos = st.tabs(["📊 General Analysis", "📝 Full POS Distribution"])
     
     with tab_mat:
-        st.header("Analysis Matrix")
-        st.dataframe(df_gen, use_container_width=True)
+        st.dataframe(pd.DataFrame(res_gen), use_container_width=True)
 
-        # --- UPDATED FLEXIBLE N-GRAM & KWIC LOGIC ---
+        # --- UPDATED FLEXIBLE SEARCH LOGIC ---
         st.divider()
         st.header("🔍 Pattern Search & Concordance (KWIC)")
         
@@ -190,16 +176,21 @@ if corpus:
         for j in range(t_filtered - n_size + 1):
             window, match = filtered_toks[j : j + n_size], True
             for idx in range(n_size):
-                w_p, t_p = p_words[idx].strip(), p_tags[idx]
-                reg = "^" + w_p.replace("*", ".*") + "$"
+                w_p_input = p_words[idx].strip()
+                t_p_selection = p_tags[idx]
+                
+                # Logic: If select "Noun (名詞)", get "名詞"
+                target_pos_tag = t_p_selection.split(" ")[-1].strip("()") if "(" in t_p_selection else t_p_selection
                 
                 tok_surf = window[idx].get('surface') or ""
                 tok_lem = window[idx].get('lemma') or ""
                 tok_pos = window[idx].get('pos') or ""
                 
-                # Logical behavior for Word Only, POS Only, or Both
-                word_match = (w_p == "*") or (re.search(reg, tok_surf) or re.search(reg, tok_lem))
-                pos_match = (t_p == "Any") or (t_p in tok_pos or tok_pos in t_p)
+                # Flexible Word Match
+                word_match = (w_p_input == "*") or (re.search("^" + w_p_input.replace("*", ".*") + "$", tok_surf) or re.search("^" + w_p_input.replace("*", ".*") + "$", tok_lem))
+                
+                # Flexible POS Match (Check if selected tag is IN the token POS)
+                pos_match = (t_p_selection == "Any (*)") or (target_pos_tag in tok_pos)
                 
                 if not (word_match and pos_match):
                     match = False
@@ -210,39 +201,26 @@ if corpus:
                 gram_pos = " + ".join([t['pos'] for t in window])
                 matches_data.append((gram_text, gram_pos))
                 l_context = "".join([t['surface'] for t in filtered_toks[max(0, j-left_context_size) : j]])
-                kwic_center = "".join([t['surface'] for t in window])
                 r_context = "".join([t['surface'] for t in filtered_toks[j+n_size : min(t_filtered, j+n_size+right_context_size)]])
-                concordance_rows.append({"Text File": window[0]['file'], "Left Context": l_context, "KWIC": kwic_center, "Right Context": r_context})
+                concordance_rows.append({"File": window[0]['file'], "Left": l_context, "KWIC": "".join([t['surface'] for t in window]), "Right": r_context})
         
         if matches_data:
-            c_freq, c_conc = st.columns([1, 2])
-            with c_freq:
-                st.subheader("N-Gram Frequencies")
-                counts = Counter(matches_data).most_common()
-                df_counts = pd.DataFrame([{"Sequence": k[0], "POS": k[1], "Raw Freq": v} for k, v in counts])
-                df_counts['PMW'] = df_counts['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
-                st.dataframe(df_counts[["Sequence", "POS", "Raw Freq", "PMW"]].head(15), use_container_width=True)
-            with c_conc:
-                st.subheader("Concordance Table (KWIC)")
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                df_counts = pd.DataFrame([{"Sequence": k[0], "POS": k[1], "Freq": v} for k, v in Counter(matches_data).most_common()])
+                st.dataframe(df_counts.head(15), use_container_width=True)
+            with c2:
                 st.dataframe(pd.DataFrame(concordance_rows), use_container_width=True)
         else:
-            st.warning("No matches found for this specific combination.")
+            st.warning("No sequences matched the specified pattern.")
 
         # --- VISUALIZATIONS ---
         st.divider()
         st.header("📈 Visualizations")
         cloud_tokens = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
-        font_p = "NotoSansJP[wght].ttf" 
-        if cloud_tokens and os.path.exists(font_p):
-            wordcloud = WordCloud(font_path=font_p, background_color="white", width=800, height=350, max_words=100).generate(" ".join(cloud_tokens))
-            fig_cloud, ax = plt.subplots(figsize=(10, 4))
-            ax.imshow(wordcloud, interpolation='bilinear'); ax.axis("off")
-            st.pyplot(fig_cloud)
-        
-        for k, t in [("Tokens", "Tokens per File"), ("TTR", "TTR Diversity"), ("Readability", "Readability Score")]:
-            fig = px.bar(df_gen, x="File", y=k, title=t, template="plotly_white")
-            st.plotly_chart(fig, use_container_width=True)
-            add_html_download_button(fig, k)
+        if cloud_tokens and os.path.exists("NotoSansJP[wght].ttf"):
+            wc = WordCloud(font_path="NotoSansJP[wght].ttf", background_color="white", width=800, height=350).generate(" ".join(cloud_tokens))
+            fig, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wc); ax.axis("off"); st.pyplot(fig)
 
     with tab_pos:
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
