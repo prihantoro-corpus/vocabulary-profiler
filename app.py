@@ -29,6 +29,14 @@ POS_FULL_MAP = {
     "Suffix (接尾辞)": "接尾辞", "Symbol/Punc (補助記号)": "補助記号"
 }
 
+TOOLTIPS = {
+    "Tokens": "Corpus size: Total number of all tokens (including punctuation).",
+    "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
+    "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
+    "Readability": "JReadability: 0.5-1.5: Upper-adv | 2.5-3.5: Upper-int | 4.5-5.5: Upper-elem.",
+    "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN."
+}
+
 # ===============================================
 # --- 2. UTILITY & LINGUISTIC FUNCTIONS ---
 # ===============================================
@@ -127,7 +135,7 @@ st.title("📖 Japanese Text Vocabulary Profiler")
 
 # Sidebar
 st.sidebar.header("Advanced N-Gram Pattern")
-n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 1) # Default to 1 for your request
+n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 1)
 p_words, p_tags = [], []
 for i in range(n_size):
     st.sidebar.write(f"**Position {i+1}**")
@@ -156,16 +164,43 @@ if corpus:
     for item in corpus:
         data = analyze_text(item['text'], item['name'], tagger, jlpt_wordlists)
         global_toks_all.extend(data["all_tokens"])
-        t_v = data["stats"]["T_Valid"]
-        res_gen.append({"File": item['name'], "Tokens": t_v, "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0, "Readability": data["stats"]["Read"], **data["jgri_base"]})
-        res_pos.append({"File": item['name'], **{f"{k} [%]": round((v/data['stats']['T_All']*100), 2) for k,v in data['pos_raw'].items()}})
+        
+        t_v, t_a = data["stats"]["T_Valid"], data["stats"]["T_All"]
+        lr = LexicalRichness(" ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])) if t_v > 10 else None
+        
+        row = {
+            "File": item['name'], "Tokens": t_v, 
+            "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
+            "MTLD": round(lr.mtld(), 2) if lr else 0, 
+            "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]),
+            "WPS": data["stats"]["WPS"], "Kanji%": data["stats"]["K%"], "Hira%": data["stats"]["H%"], "Kata%": data["stats"]["T%"], "Other%": data["stats"]["O%"],
+            **data["jgri_base"]
+        }
+        for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
+            row[lvl], row[f"{lvl}%"] = data["jlpt"][lvl], round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
+        res_gen.append(row)
+
+        p_row = {"File": item['name'], "Total (Inc. Punc)": t_a}
+        for label, count in data["pos_raw"].items():
+            p_row[f"{label} [Raw]"] = count
+            p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
+        res_pos.append(p_row)
+
+    df_gen = pd.DataFrame(res_gen)
+    # Calculate JGRI Z-scores
+    for c in ["MMS", "LD", "VPS", "MPN"]:
+        df_gen[f"z_{c}"] = zscore(df_gen[c]) if df_gen[c].std() != 0 else 0
+    df_gen["JGRI"] = df_gen[[f"z_{c}" for c in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
 
     tab_mat, tab_pos = st.tabs(["📊 General Analysis", "📝 Full POS Distribution"])
     
     with tab_mat:
-        st.dataframe(pd.DataFrame(res_gen), use_container_width=True)
+        st.header("Analysis Matrix")
+        cfg = {k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}
+        disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "WPS", "Kanji%", "Hira%", "Kata%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
+        st.dataframe(df_gen[disp], column_config=cfg, use_container_width=True)
 
-        # --- UPDATED FLEXIBLE SEARCH LOGIC ---
+        # --- FLEXIBLE SEARCH LOGIC ---
         st.divider()
         st.header("🔍 Pattern Search & Concordance (KWIC)")
         
@@ -178,18 +213,13 @@ if corpus:
             for idx in range(n_size):
                 w_p_input = p_words[idx].strip()
                 t_p_selection = p_tags[idx]
-                
-                # Logic: If select "Noun (名詞)", get "名詞"
                 target_pos_tag = t_p_selection.split(" ")[-1].strip("()") if "(" in t_p_selection else t_p_selection
                 
                 tok_surf = window[idx].get('surface') or ""
                 tok_lem = window[idx].get('lemma') or ""
                 tok_pos = window[idx].get('pos') or ""
                 
-                # Flexible Word Match
                 word_match = (w_p_input == "*") or (re.search("^" + w_p_input.replace("*", ".*") + "$", tok_surf) or re.search("^" + w_p_input.replace("*", ".*") + "$", tok_lem))
-                
-                # Flexible POS Match (Check if selected tag is IN the token POS)
                 pos_match = (t_p_selection == "Any (*)") or (target_pos_tag in tok_pos)
                 
                 if not (word_match and pos_match):
@@ -212,17 +242,42 @@ if corpus:
             with c2:
                 st.dataframe(pd.DataFrame(concordance_rows), use_container_width=True)
         else:
-            st.warning("No sequences matched the specified pattern.")
+            st.warning("No matches found.")
 
-        # --- VISUALIZATIONS ---
+        # --- RESTORED VISUALIZATIONS ---
         st.divider()
         st.header("📈 Visualizations")
+        
+        # Word Cloud
+        st.subheader("☁️ Word Cloud (Content Words Only)")
         cloud_tokens = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
-        if cloud_tokens and os.path.exists("NotoSansJP[wght].ttf"):
-            wc = WordCloud(font_path="NotoSansJP[wght].ttf", background_color="white", width=800, height=350).generate(" ".join(cloud_tokens))
-            fig, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wc); ax.axis("off"); st.pyplot(fig)
+        font_p = "NotoSansJP[wght].ttf" 
+        if cloud_tokens and os.path.exists(font_p):
+            wordcloud = WordCloud(font_path=font_p, background_color="white", width=800, height=350, max_words=100).generate(" ".join(cloud_tokens))
+            fig_cloud, ax = plt.subplots(figsize=(10, 4))
+            ax.imshow(wordcloud, interpolation='bilinear'); ax.axis("off")
+            st.pyplot(fig_cloud)
+
+        # Quantitative Metrics Charts
+        v_keys = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
+        for key, title in v_keys:
+            fig = px.bar(df_gen, x="File", y=key, title=title, template="plotly_white")
+            st.plotly_chart(fig, use_container_width=True)
+            add_html_download_button(fig, key)
+
+        # Distribution Charts
+        df_s = df_gen.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
+        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
+        st.plotly_chart(fig_s, use_container_width=True)
+        add_html_download_button(fig_s, "Script_Dist")
+
+        df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
+        fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
+        st.plotly_chart(fig_j, use_container_width=True)
+        add_html_download_button(fig_j, "JLPT_Dist")
 
     with tab_pos:
+        st.header("14-Tier POS Distribution")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
 else:
     st.info("Upload files to begin.")
