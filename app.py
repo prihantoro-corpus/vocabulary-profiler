@@ -15,16 +15,19 @@ from scipy.stats import zscore
 
 TOOLTIPS = {
     "Tokens": "Corpus size: Total number of all morphemes/words detected by the tokenizer.",
-    "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
-    "MTLD": "Lexical Diversity. Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability (Hasebe & Lee 2015). Constant: 11.724. Lower scores = Advanced.",
-    "JGRI": "Relative Complexity: < -1.0: Easy | 0 to +1.0: Medium | > +1.0: High complexity.",
-    "JLPT": "Distribution based on N1-N5 wordlists from GitHub repository.",
-    "POS": "Part of Speech Distribution: English and Japanese labels included."
+    "TTR": "Type-Token Ratio (V/N). Thresholds:\n- < 0.45: Repetitive\n- 0.45-0.65: Moderate\n- > 0.65: Varied",
+    "MTLD": "Measuring Textual Lexical Diversity. Thresholds:\n- < 40: Basic\n- 40-80: Intermediate\n- > 80: Advanced",
+    "Readability": (
+        "JReadability Score (Hasebe & Lee 2015). Thresholds:\n"
+        "- 0.5-1.5: Upper-advanced\n- 2.5-3.5: Upper-intermediate\n- 4.5-5.5: Upper-elementary"
+    ),
+    "JGRI": (
+        "Japanese Grammar Readability Index (Relative Complexity):\n"
+        "- < -1.0: Very easy / Conversational\n- 0 to +1.0: Medium complexity\n- > +1.0: High complexity"
+    )
 }
 
-# POS Options for the N-Gram Selectbox
-POS_OPTIONS = ["Any (*)", "名詞 (Noun)", "動詞 (Verb)", "助詞 (Particle)", "副詞 (Adverb)", "形容詞 (Adjective)", "助動詞 (Auxiliary)", "接続詞 (Conjunction)", "代名詞 (Pronoun)", "連体詞 (Determiner)", "感動詞 (Interjection)"]
+POS_OPTIONS = ["Any (*)", "名詞 (Noun)", "動詞 (Verb)", "助詞 (Particle)", "副詞 (Adverb)", "形容詞 (Adjective)", "助動詞 (Auxiliary)", "接続詞 (Conjunction)", "代名詞 (Pronoun)"]
 
 # ===============================================
 # --- 2. LINGUISTIC ENGINE ---
@@ -41,6 +44,15 @@ def load_jlpt_wordlists():
             lists[lvl] = set(df.iloc[:, 0].astype(str).tolist())
         except: lists[lvl] = set()
     return lists
+
+def get_jread_level(score):
+    if 0.5 <= score < 1.5: return "Upper-advanced"
+    elif 1.5 <= score < 2.5: return "Lower-advanced"
+    elif 2.5 <= score < 3.5: return "Upper-intermediate"
+    elif 3.5 <= score < 4.5: return "Lower-intermediate"
+    elif 4.5 <= score < 5.5: return "Upper-elementary"
+    elif 5.5 <= score < 6.5: return "Lower-elementary"
+    else: return "Other"
 
 def analyze_text(text, tagger, jlpt_lists):
     nodes = tagger(text)
@@ -64,7 +76,7 @@ def analyze_text(text, tagger, jlpt_lists):
         elif re.search(r'[\u30a0-\u30ff]', n['surface']): scripts["T"] += 1
         else: scripts["NA"] += 1
 
-    pos_names = {"Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞", "Adverb (副詞)": "副詞", "Adjective (形容詞)": "形容詞", "Auxiliary (助動詞)": "助動詞", "Conjunction (接続詞)": "接続詞"}
+    pos_names = {"Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞", "Adverb (副詞)": "副詞", "Adjective (形容詞)": "形容詞"}
     pos_counts = {k: sum(1 for n in valid_nodes if n['pos'] == v) for k, v in pos_names.items()}
     
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
@@ -77,7 +89,6 @@ def analyze_text(text, tagger, jlpt_lists):
                 break
         if not found: jlpt_counts["NA"] += 1
 
-    # JReadability Formula
     wps = total_tokens / num_sentences
     pk, ph, pv, pp = [(x/total_tokens*100) if total_tokens > 0 else 0 for x in [scripts["K"], scripts["H"], pos_counts["Verb (動詞)"], pos_counts["Particle (助詞)"]]]
     jread_score = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044))
@@ -90,20 +101,20 @@ def analyze_text(text, tagger, jlpt_lists):
     }
 
 # ===============================================
-# --- 3. UI LAYOUT ---
+# --- 3. UI LAYOUT & PATTERN MATCHING ---
 # ===============================================
 
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
 
 pwd = st.sidebar.text_input("If you are a developer, tester, or reviewer, enter password", type="password")
 if pwd != "290683":
-    st.info("If you are a developer, tester, or reviewer, enter the password in the sidebar.")
+    st.info("Enter the password in the sidebar to unlock.")
     st.stop()
 
 tagger, jlpt_lists = Tagger(), load_jlpt_wordlists()
 st.title("📖 Japanese Text Vocabulary Profiler")
 
-# Sidebar: Advanced N-Gram Search with Dual Boxes
+# Sidebar: Dual-Box N-Gram Pattern Search
 st.sidebar.header("Advanced N-Gram Pattern")
 n_val = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
 
@@ -114,11 +125,11 @@ for i in range(n_val):
     st.sidebar.write(f"**Position {i+1}**")
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        w = st.text_input("Word/*", value="*", key=f"w_{i}")
+        w = st.text_input("Regex/Word", value="*", key=f"w_{i}", help="Use * for wildcard (regex .*). Example: *型 or *ている")
         pattern_words.append(w)
     with col2:
         p = st.selectbox("POS Tag", options=POS_OPTIONS, key=f"p_{i}")
-        pattern_pos.append(p.split(" ")[0]) # Extract '名詞' from '名詞 (Noun)'
+        pattern_pos.append(p.split(" ")[0])
 
 source = st.sidebar.selectbox("Data Source", ["Upload Files", "DICO-JALF 30", "DICO-JALF ALL"])
 corpus = []
@@ -141,13 +152,15 @@ if corpus:
         
         row = {
             "File": item['name'], "Tokens": total, "TTR": round(len(set([t['lemma'] for t in data["tokens"]]))/total, 3) if total > 0 else 0,
-            "MTLD": round(lr.mtld(), 2) if lr else 0, "Readability": data["stats"]["Readability"], "WPS": data["stats"]["WPS"],
-            "Percentage Kango": round(data["stats"]["K_Raw"]/total*100, 2) if total > 0 else 0,
-            "Percentage Wago": round(data["stats"]["H_Raw"]/total*100, 2) if total > 0 else 0,
-            "Percentage Verbs": round(data["stats"]["V_Raw"]/total*100, 2) if total > 0 else 0,
-            "Percentage Particles": round(data["stats"]["P_Raw"]/total*100, 2) if total > 0 else 0,
-            "K%": round(data["stats"]["K_Raw"]/total*100, 1) if total > 0 else 0, "H%": round(data["stats"]["H_Raw"]/total*100, 1) if total > 0 else 0,
-            "T%": round(data["stats"]["T_Raw"]/total*100, 1) if total > 0 else 0, "Other%": round(data["stats"]["O_Raw"]/total*100, 1) if total > 0 else 0,
+            "MTLD": round(lr.mtld(), 2) if lr else 0, "Readability": data["stats"]["Readability"], "J-Level": get_jread_level(data["stats"]["Readability"]),
+            "WPS": data["stats"]["WPS"], "Kango Count": data["stats"]["K_Raw"], "Percentage Kango": round(data["stats"]["K_Raw"]/total*100, 2) if total > 0 else 0,
+            "Wago Count": data["stats"]["H_Raw"], "Percentage Wago": round(data["stats"]["H_Raw"]/total*100, 2) if total > 0 else 0,
+            "Verbs Count": data["stats"]["V_Raw"], "Percentage Verbs": round(data["stats"]["V_Raw"]/total*100, 2) if total > 0 else 0,
+            "Particles Count": data["stats"]["P_Raw"], "Percentage Particles": round(data["stats"]["P_Raw"]/total*100, 2) if total > 0 else 0,
+            "Kanji Count": data["stats"]["K_Raw"], "Kanji%": round(data["stats"]["K_Raw"]/total*100, 1) if total > 0 else 0,
+            "Hira Count": data["stats"]["H_Raw"], "Hira%": round(data["stats"]["H_Raw"]/total*100, 1) if total > 0 else 0,
+            "Kata Count": data["stats"]["T_Raw"], "Kata%": round(data["stats"]["T_Raw"]/total*100, 1) if total > 0 else 0,
+            "Other Count": data["stats"]["O_Raw"], "Other%": round(data["stats"]["O_Raw"]/total*100, 1) if total > 0 else 0,
             **data["jgri"]
         }
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
@@ -163,28 +176,33 @@ if corpus:
     for c in ["MMS", "LD", "VPS", "MPN"]:
         df[f"z_{c}"] = zscore(df[c]) if df[c].std() != 0 else 0
     df["JGRI"] = df[[f"z_{c}" for c in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
+    df["Complexity"] = df["JGRI"].apply(lambda v: "High" if v > 1 else ("Medium" if v >= 0 else "Easy"))
 
     tab1, tab2 = st.tabs(["📊 General Analysis", "📝 POS Distribution"])
     with tab1:
-        st.header("Analysis Matrix")
         cfg = {k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}
-        disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "JGRI", "WPS", "Percentage Kango", "Percentage Wago", "Percentage Verbs", "Percentage Particles", "K%", "H%", "T%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
+        disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "Complexity", "WPS", "Kango Count", "Percentage Kango", "Wago Count", "Percentage Wago", "Verbs Count", "Percentage Verbs", "Particles Count", "Percentage Particles", "Kanji Count", "Kanji%", "Hira Count", "Hira%", "Kata Count", "Kata%", "Other Count", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
         st.dataframe(df[disp], column_config=cfg, use_container_width=True)
     with tab2:
-        st.header("POS Distribution")
         st.dataframe(pd.DataFrame(pos_results), use_container_width=True)
 
-    # --- ADVANCED N-GRAM PATTERN MATCHING ---
+    # --- ADVANCED REGEX N-GRAM LOGIC ---
     st.divider()
-    st.header(f"N-Gram Pattern Results")
+    st.header(f"N-Gram Pattern Results (Regex Supported)")
     matches = []
     for j in range(len(global_tokens) - n_val + 1):
         window, match = global_tokens[j : j + n_val], True
         for idx in range(n_val):
             w_pat, p_pat = pattern_words[idx].strip(), pattern_pos[idx]
             token = window[idx]
-            if w_pat != "*" and w_pat != "" and token['surface'] != w_pat and token['lemma'] != w_pat: match = False; break
-            if p_pat != "Any" and token['pos'] != p_pat: match = False; break
+            
+            # Regex conversion: * becomes .*
+            regex_str = "^" + w_pat.replace("*", ".*") + "$"
+            
+            if not re.search(regex_str, token['surface']) and not re.search(regex_str, token['lemma']):
+                match = False; break
+            if p_pat != "Any" and token['pos'] != p_pat:
+                match = False; break
         if match: matches.append(" ".join([t['surface'] for t in window]))
     
     if matches:
