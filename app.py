@@ -35,15 +35,31 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Corpus size: Total number of all morphemes/words detected (including punctuation).",
+    "Tokens": "Corpus size: Total number of all morphemes/words detected.",
     "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
     "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability: 0.5-1.5: Upper-adv | 2.5-3.5: Upper-int | 4.5-5.5: Upper-elem.",
-    "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN. Positive = More complex than corpus average."
+    "Readability": "JReadability: 0.5-1.5: Upper-adv | 1.5-2.5: Lower-adv | 2.5-3.5: Upper-int | 3.5-4.5: Lower-int | 4.5-5.5: Upper-elem | 5.5-6.5: Lower-elem.",
+    "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN."
 }
 
 # ===============================================
-# --- 2. LINGUISTIC ENGINE ---
+# --- 2. DOWNLOAD HANDLER ---
+# ===============================================
+
+def add_html_download_button(fig, filename):
+    """Saves Plotly chart as HTML string."""
+    buffer = io.StringIO()
+    fig.write_html(buffer, include_plotlyjs='cdn')
+    html_bytes = buffer.getvalue().encode()
+    st.download_button(
+        label=f"📥 Download {filename} (Interactive HTML)",
+        data=html_bytes,
+        file_name=f"{filename}.html",
+        mime="text/html"
+    )
+
+# ===============================================
+# --- 3. LINGUISTIC ENGINE ---
 # ===============================================
 
 @st.cache_data
@@ -103,15 +119,15 @@ def analyze_text(text, tagger, jlpt_lists):
     content_words = sum(1 for n in valid_nodes if n.feature.pos1 in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
-        "all_tokens": [{"surface": n.surface, "lemma": n.feature.orth if hasattr(n.feature, 'orth') else n.surface, "pos": n.feature.pos1} for n in all_nodes],
-        "stats": {"Total_All": total_tokens_all, "Total_Valid": total_tokens_valid, "WPS": round(wps, 2), "Readability": round(jread, 3), "K%": round(pk, 1), "H%": round(ph, 1), "T%": round((scripts["T"]/total_tokens_valid*100), 1), "O%": round((scripts["NA"]/total_tokens_valid*100), 1)},
+        "tokens_all": [{"surface": n.surface, "lemma": n.feature.orth if hasattr(n.feature, 'orth') else n.surface, "pos": n.feature.pos1} for n in all_nodes],
+        "stats": {"T_Valid": total_tokens_valid, "T_All": total_tokens_all, "WPS": round(wps, 2), "Read": round(jread, 3), "K%": round(pk, 1), "H%": round(ph, 1), "T%": round((scripts["T"]/total_tokens_valid*100), 1), "O%": round((scripts["NA"]/total_tokens_valid*100), 1)},
         "jlpt": jlpt_counts, 
         "pos_raw": pos_counts_raw,
         "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": pos_counts_raw["Verb (動詞)"]/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
     }
 
 # ===============================================
-# --- 3. STREAMLIT APPLICATION ---
+# --- 4. STREAMLIT APPLICATION ---
 # ===============================================
 
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
@@ -139,7 +155,8 @@ if source == "Upload Files":
     if up:
         for f in up: corpus.append({"name": f.name, "text": f.read().decode('utf-8')})
 else:
-    url = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%20all.xlsx" if "ALL" in source else "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%2030%20files%20only.xlsx"
+    url_key = "all" if "ALL" in source else "30%20files%20only"
+    url = f"https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%20{url_key}.xlsx"
     df_pre = pd.read_excel(io.BytesIO(requests.get(url).content), header=None)
     corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
 
@@ -147,27 +164,27 @@ if corpus:
     res_gen, res_pos, global_toks = [], [], []
     for item in corpus:
         data = analyze_text(item['text'], tagger, jlpt_wordlists)
-        global_toks.extend(data["all_tokens"])
-        t_valid = data["stats"]["Total_Valid"]
-        t_all = data["stats"]["Total_All"]
-        lr = LexicalRichness(" ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])) if t_valid > 10 else None
+        global_toks.extend(data["tokens_all"])
+        t_v = data["stats"]["T_Valid"]
+        t_a = data["stats"]["T_All"]
+        lr = LexicalRichness(" ".join([t['surface'] for t in data["tokens_all"] if t['pos'] != "補助記号"])) if t_v > 10 else None
         
         row = {
-            "File": item['name'], "Tokens": t_valid, 
-            "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_valid, 3) if t_valid > 0 else 0,
+            "File": item['name'], "Tokens": t_v, 
+            "TTR": round(len(set([t['lemma'] for t in data["tokens_all"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
             "MTLD": round(lr.mtld(), 2) if lr else 0, 
-            "Readability": data["stats"]["Readability"], "J-Level": get_jread_level(data["stats"]["Readability"]),
+            "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]),
             "WPS": data["stats"]["WPS"], "Kanji%": data["stats"]["K%"], "Hira%": data["stats"]["H%"], "Kata%": data["stats"]["T%"], "Other%": data["stats"]["O%"],
             **data["jgri_base"]
         }
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
-            row[lvl], row[f"{lvl}%"] = data["jlpt"][lvl], round((data["jlpt"][lvl]/t_valid*100), 1) if t_valid > 0 else 0
+            row[lvl], row[f"{lvl}%"] = data["jlpt"][lvl], round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
         res_gen.append(row)
 
-        p_row = {"File": item['name'], "Total Tokens (Inc. Punc)": t_all}
+        p_row = {"File": item['name'], "Total (Inc. Punc)": t_a}
         for label, count in data["pos_raw"].items():
             p_row[f"{label} [Raw]"] = count
-            p_row[f"{label} [%]"] = round((count/t_all*100), 2) if t_all > 0 else 0
+            p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
         res_pos.append(p_row)
 
     df_gen = pd.DataFrame(res_gen)
@@ -184,23 +201,30 @@ if corpus:
 
         st.divider()
         st.header("📈 Visualizations")
-        c1, c2 = st.columns(2)
-        c1.plotly_chart(px.bar(df_gen, x="File", y="Tokens", title="Tokens per File"), use_container_width=True)
-        c2.plotly_chart(px.bar(df_gen, x="File", y="TTR", title="TTR (Type-Token Ratio)"), use_container_width=True)
-        c3, c4 = st.columns(2)
-        c3.plotly_chart(px.bar(df_gen, x="File", y="MTLD", title="MTLD (Lexical Diversity)"), use_container_width=True)
-        c4.plotly_chart(px.bar(df_gen, x="File", y="Readability", title="JReadability Score"), use_container_width=True)
-        st.plotly_chart(px.bar(df_gen, x="File", y="JGRI", title="JGRI (Relative Complexity)"), use_container_width=True)
+        
+        viz_keys = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("MTLD", "MTLD Diversity"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
+        for key, title in viz_keys:
+            fig = px.bar(df_gen, x="File", y=key, title=title, template="plotly_white")
+            st.plotly_chart(fig, use_container_width=True)
+            add_html_download_button(fig, key)
+
+        # Scripts Stacked
         df_s = df_gen.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
-        st.plotly_chart(px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack"), use_container_width=True)
+        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
+        st.plotly_chart(fig_s, use_container_width=True)
+        add_html_download_button(fig_s, "Script_Dist")
+
+        # JLPT Stacked
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
-        st.plotly_chart(px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}), use_container_width=True)
+        fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
+        st.plotly_chart(fig_j, use_container_width=True)
+        add_html_download_button(fig_j, "JLPT_Dist")
 
     with tab_pos:
         st.header("14-Tier POS Distribution")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
 
-    # --- N-GRAM SEARCH (Skipping Punc & Full Download) ---
+    # --- N-GRAM SEARCH ---
     st.divider()
     st.header("Pattern Search Results")
     filtered_toks = [t for t in global_toks if t['pos'] != "補助記号"]
