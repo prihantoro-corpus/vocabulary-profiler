@@ -160,8 +160,8 @@ else:
     df_pre = pd.read_excel(io.BytesIO(requests.get(url).content), header=None)
     corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
 
-if st.sidebar.text_input("Access Password", type="password") != "290683":
-    st.info("Enter password to unlock.")
+if st.sidebar.text_input("Access Password", type="password") != "112233":
+    st.info("JL-PRO helps you generate vocabulary profiles from a corpus (texts). This web-based application is still in progress, but available to developers, testers and reviewers. Access: https://vocabulary-profiler.streamlit.app/. If you are invited, you must have the password already. Enter the password to start your analysis. If you want to be a tester, feel free to contact prihantoro@live.undip.ac.id. ")
     st.stop()
 
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
