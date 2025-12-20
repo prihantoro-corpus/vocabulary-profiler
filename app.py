@@ -20,7 +20,6 @@ import os
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
 
-# Full 14-Tier POS Mapping including modern UniDic categories
 POS_FULL_MAP = {
     "Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞",
     "Adverb (副詞)": "副詞", "Adjective (形容詞)": "形容詞", "Adjectival Noun (形状詞)": "形状詞",
@@ -72,7 +71,6 @@ def analyze_text(text, filename, tagger, jlpt_lists):
     all_nodes = []
     for n in nodes:
         if n.surface:
-            # Fallback for lemma if it is None
             lemma = n.feature.orth if hasattr(n.feature, 'orth') and n.feature.orth else n.surface
             all_nodes.append({
                 "surface": n.surface,
@@ -204,36 +202,30 @@ if corpus:
         st.divider()
         st.header("🔍 Pattern Search & Concordance (KWIC)")
         
-        # Punctuation skipped for matching to focus on lexical flow
         filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
         t_filtered = len(filtered_toks)
         
-        matches, concordance_rows = [], []
+        matches_data = [] 
+        concordance_rows = []
         for j in range(t_filtered - n_size + 1):
             window, match = filtered_toks[j : j + n_size], True
             for idx in range(n_size):
                 w_p, t_p = p_words[idx].strip(), p_tags[idx]
                 reg = "^" + w_p.replace("*", ".*") + "$"
-                
-                # SAFETY: Handle potential NoneType by ensuring string conversion
                 tok_surf = window[idx].get('surface') or ""
                 tok_lem = window[idx].get('lemma') or ""
                 tok_pos = window[idx].get('pos') or ""
-                
-                # Check for Word/Regex match
                 if w_p != "*" and not (re.search(reg, tok_surf) or re.search(reg, tok_lem)): 
                     match = False; break
-                
-                # Broaden POS check for UniDic sub-categories (e.g., capture 動詞-一般 when selecting '動詞')
                 if t_p != "Any":
                     if t_p not in tok_pos and tok_pos not in t_p:
                         match = False; break
             
             if match:
                 gram_text = " ".join([t['surface'] for t in window])
-                matches.append(gram_text)
+                gram_pos = " + ".join([t['pos'] for t in window]) # Sequence of POS tags
+                matches_data.append((gram_text, gram_pos))
                 
-                # Construct context windows for KWIC
                 l_context = "".join([t['surface'] for t in filtered_toks[max(0, j-left_context_size) : j]])
                 kwic_center = "".join([t['surface'] for t in window])
                 r_context = "".join([t['surface'] for t in filtered_toks[j+n_size : min(t_filtered, j+n_size+right_context_size)]])
@@ -245,13 +237,14 @@ if corpus:
                     "Right Context": r_context
                 })
         
-        if matches:
+        if matches_data:
             c_freq, c_conc = st.columns([1, 2])
             with c_freq:
                 st.subheader("N-Gram Frequencies")
-                df_counts = pd.DataFrame(Counter(matches).most_common(), columns=['Sequence', 'Raw Freq'])
+                counts = Counter(matches_data).most_common()
+                df_counts = pd.DataFrame([{"Sequence": k[0], "POS": k[1], "Raw Freq": v} for k, v in counts])
                 df_counts['PMW'] = df_counts['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
-                st.dataframe(df_counts.head(10), use_container_width=True)
+                st.dataframe(df_counts[["Sequence", "POS", "Raw Freq", "PMW"]].head(10), use_container_width=True)
                 csv_ngrams = df_counts.to_csv(index=False).encode('utf-8-sig')
                 st.download_button("📥 Download All N-Grams", csv_ngrams, "all_ngrams.csv", "text/csv")
                 
@@ -262,13 +255,12 @@ if corpus:
                 csv_conc = df_conc.to_csv(index=False).encode('utf-8-sig')
                 st.download_button("📥 Download Full Concordance", csv_conc, "full_concordance.csv", "text/csv")
         else:
-            st.warning("No sequences matched the specified pattern. Check POS tags in the distribution tab.")
+            st.warning("No sequences matched.")
 
         # --- VISUALIZATIONS ---
         st.divider()
         st.header("📈 Visualizations")
         
-        # Word Cloud using specified Noto Sans JP font
         st.subheader("☁️ Word Cloud (Content Words Only)")
         cloud_tokens = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
         font_p = "NotoSansJP[wght].ttf" 
@@ -278,14 +270,12 @@ if corpus:
             ax.imshow(wordcloud, interpolation='bilinear'); ax.axis("off")
             st.pyplot(fig_cloud)
         
-        # Plotly charts with HTML download capability
         v_keys = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("MTLD", "MTLD Diversity"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
         for key, title in v_keys:
             fig = px.bar(df_gen, x="File", y=key, title=title, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True)
             add_html_download_button(fig, key)
 
-        # Script and JLPT Distribution Stacked Charts
         df_s = df_gen.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
         fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True)
