@@ -145,7 +145,7 @@ def analyze_text(text, filename, tagger, jlpt_lists):
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
 
 st.sidebar.title("📚 USER'S MANUAL")
-st.sidebar.markdown("[Click here to view the Manual](https://docs.google.com/document/d/1SvfMQjsTm8uLI0PTwSOL1lTEiLhVUFArb6Q0lRHSiZU/edit?usp=sharing)")
+st.sidebar.markdown("[Click here to view the Manual](https://docs.google.com/document/d/1wFPY_b90K0NjS6dQEHJsjJDD_ZRbckq6vzY-kqMT9kE/edit?usp=sharing)")
 st.sidebar.divider()
 
 source = st.sidebar.selectbox("📂 Select Data Source", ["Upload Files", "DICO-JALF 30", "DICO-JALF ALL"])
