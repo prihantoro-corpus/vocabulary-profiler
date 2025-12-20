@@ -11,23 +11,38 @@ from lexicalrichness import LexicalRichness
 from scipy.stats import zscore
 
 # ===============================================
-# --- 1. CONFIGURATION & TOOLTIPS ---
+# --- 1. CONFIGURATION & MAPPINGS ---
 # ===============================================
 
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
 
-TOOLTIPS = {
-    "Tokens": "Corpus size: Total number of all morphemes/words detected by the tokenizer.",
-    "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
-    "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
-    "Readability": "JReadability: 0.5-1.5: Upper-adv | 1.5-2.5: Lower-adv | 2.5-3.5: Upper-int | 3.5-4.5: Lower-int | 4.5-5.5: Upper-elem | 5.5-6.5: Lower-elem.",
-    "JGRI": "Relative Complexity: < -1.0: Very easy | 0 to +1.0: Medium | > +1.0: High complexity.",
-    "JLPT": "Distribution based on N1-N5 lists. NA = Not found in standard JLPT lists."
+# Full 14-Tier POS Mapping
+POS_FULL_MAP = {
+    "Noun (名詞)": "名詞",
+    "Verb (動詞)": "動詞",
+    "Particle (助詞)": "助詞",
+    "Adverb (副詞)": "副詞",
+    "Adjective (形容詞)": "形容詞",
+    "Adjectival Noun (形状詞)": "形状詞",
+    "Auxiliary Verb (助動詞)": "助動詞",
+    "Conjunction (接続詞)": "接続詞",
+    "Pronoun (代名詞)": "代名詞",
+    "Determiner (連体詞)": "連体詞",
+    "Interjection (感動詞)": "感動詞",
+    "Prefix (接頭辞)": "接頭辞",
+    "Suffix (接尾辞)": "接尾辞",
+    "Symbol/Punc (補助記号)": "補助記号"
 }
 
-# POS Options for N-Gram dropdown
-POS_OPTIONS = ["Any (*)", "名詞 (Noun)", "動詞 (Verb)", "助詞 (Particle)", "副詞 (Adverb)", "形容詞 (Adjective)", "助動詞 (Auxiliary)", "接続詞 (Conjunction)", "代名詞 (Pronoun)"]
+# Threshold Tooltips
+TOOLTIPS = {
+    "Tokens": "Corpus size: Total number of all morphemes/words detected (including punctuation).",
+    "TTR": "Type-Token Ratio. Thresholds: < 0.45: Repetitive | 0.45-0.65: Moderate | > 0.65: Varied.",
+    "MTLD": "Lexical Diversity (Length-independent). Thresholds: < 40: Basic | 40-80: Intermediate | > 80: Advanced.",
+    "Readability": "JReadability: 0.5-1.5: Upper-adv | 2.5-3.5: Upper-int | 4.5-5.5: Upper-elem.",
+    "JGRI": "Relative Complexity: Z-score average of MMS, LD, VPS, and MPN. Positive = More complex than corpus average."
+}
 
 # ===============================================
 # --- 2. LINGUISTIC ENGINE ---
@@ -52,20 +67,18 @@ def get_jread_level(score):
     elif 5.5 <= score < 6.5: return "Lower-elementary"
     else: return "Other"
 
-def get_jgri_interpretation(val):
-    if val < -1.0: return "Very easy"
-    elif -1.0 <= val < 0: return "Relatively easy"
-    elif 0 <= val < 1.0: return "Medium complexity"
-    else: return "High complexity"
-
 def analyze_text(text, tagger, jlpt_lists):
     nodes = tagger(text)
-    valid_nodes = [n for n in nodes if n.surface and n.feature.pos1 != "補助記号"]
+    all_nodes = [n for n in nodes if n.surface]
+    # For Readability/JLPT formulas, we exclude punctuation (補助記号)
+    valid_nodes = [n for n in all_nodes if n.feature.pos1 != "補助記号"]
+    
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
     num_sentences = len(sentences) if sentences else 1
-    total_tokens = len(valid_nodes)
+    total_tokens_all = len(all_nodes)
+    total_tokens_valid = len(valid_nodes)
     
-    # Scripts
+    # Scripts (based on valid tokens)
     scripts = {"K": 0, "H": 0, "T": 0, "NA": 0}
     for n in valid_nodes:
         if re.search(r'[\u4e00-\u9faf]', n.surface): scripts["K"] += 1
@@ -73,11 +86,10 @@ def analyze_text(text, tagger, jlpt_lists):
         elif re.search(r'[\u30a0-\u30ff]', n.surface): scripts["T"] += 1
         else: scripts["NA"] += 1
 
-    # POS
-    pos_map = {"Noun": "名詞", "Verb": "動詞", "Particle": "助詞", "Adverb": "副詞", "Adjective": "形容詞", "Auxiliary": "助動詞", "Conjunction": "接続詞"}
-    pos_counts = {k: sum(1 for n in valid_nodes if n.feature.pos1 == v) for k, v in pos_map.items()}
+    # Full POS Stats (based on all tokens)
+    pos_counts_raw = {k: sum(1 for n in all_nodes if n.feature.pos1 == v) for k, v in POS_FULL_MAP.items()}
     
-    # JLPT
+    # JLPT Mapping
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
     for n in valid_nodes:
         lemma = n.feature.orth if hasattr(n.feature, 'orth') else n.surface
@@ -89,28 +101,31 @@ def analyze_text(text, tagger, jlpt_lists):
                 break
         if not found: jlpt_counts["NA"] += 1
 
-    # JReadability (11.724 + WPS*-0.056 + K%*-0.126 + W%*-0.042 + V%*-0.145 + P%*-0.044)
-    wps = total_tokens / num_sentences
-    pk, ph, pv, pp = [(x/total_tokens*100) if total_tokens > 0 else 0 for x in [scripts["K"], scripts["H"], pos_counts["Verb"], pos_counts["Particle"]]]
-    jread_score = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044))
+    # JReadability (11.724 Constant)
+    wps = total_tokens_valid / num_sentences
+    pk, ph = (scripts["K"]/total_tokens_valid*100), (scripts["H"]/total_tokens_valid*100)
+    pv, pp = (pos_counts_raw["Verb (動詞)"]/total_tokens_valid*100), (pos_counts_raw["Particle (助詞)"]/total_tokens_valid*100)
+    jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044))
+
+    # JGRI Components
+    content_words = sum(1 for n in valid_nodes if n.feature.pos1 in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
-        "tokens": [{"surface": n.surface, "lemma": n.feature.orth if hasattr(n.feature, 'orth') else n.surface, "pos": n.feature.pos1} for n in valid_nodes],
-        "stats": {"Tokens": total_tokens, "WPS": round(wps, 2), "Readability": round(jread_score, 3), "K_Raw": scripts["K"], "H_Raw": scripts["H"], "T_Raw": scripts["T"], "O_Raw": scripts["NA"], "V_Raw": pos_counts["Verb"], "P_Raw": pos_counts["Particle"]},
-        "jlpt": jlpt_counts,
-        "jgri": {"MMS": total_tokens/num_sentences, "LD": sum(pos_counts.values())/total_tokens if total_tokens > 0 else 0, "VPS": pos_counts["Verb"]/num_sentences, "MPN": pos_counts["Adverb"]/pos_counts["Noun"] if pos_counts["Noun"] > 0 else 0},
-        "pos_full": pos_counts
+        "all_tokens": [{"surface": n.surface, "lemma": n.feature.orth if hasattr(n.feature, 'orth') else n.surface, "pos": n.feature.pos1} for n in all_nodes],
+        "stats": {"Total_All": total_tokens_all, "Total_Valid": total_tokens_valid, "WPS": round(wps, 2), "Readability": round(jread, 3), "K%": round(pk, 1), "H%": round(ph, 1), "T%": round((scripts["T"]/total_tokens_valid*100), 1), "O%": round((scripts["NA"]/total_tokens_valid*100), 1)},
+        "jlpt": jlpt_counts, 
+        "pos_raw": pos_counts_raw,
+        "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": pos_counts_raw["Verb (動詞)"]/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
     }
 
 # ===============================================
-# --- 4. STREAMLIT UI ---
+# --- 3. STREAMLIT APPLICATION ---
 # ===============================================
 
 st.set_page_config(layout="wide", page_title="Japanese Lexical Profiler")
 
-pwd = st.sidebar.text_input("If you are a developer, tester, or reviewer, enter password", type="password")
-if pwd != "290683":
-    st.info("If you are a developer, tester, or reviewer, enter the password in the sidebar.")
+if st.sidebar.text_input("Access Password", type="password") != "290683":
+    st.info("Enter password to unlock analysis.")
     st.stop()
 
 tagger, jlpt_wordlists = Tagger(), load_jlpt_wordlists()
@@ -118,18 +133,18 @@ st.title("📖 Japanese Text Vocabulary Profiler")
 
 # Sidebar: Advanced N-Gram Search
 st.sidebar.header("Advanced N-Gram Pattern")
-n_gram_val = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
-p_words, p_pos = [], []
-for i in range(n_gram_val):
+n_size = st.sidebar.number_input("N-Gram Size", 1, 5, 2)
+p_words, p_tags = [], []
+for i in range(n_size):
     st.sidebar.write(f"**Position {i+1}**")
     c1, c2 = st.sidebar.columns(2)
-    p_words.append(c1.text_input("Regex/Word", value="*", key=f"w_{i}"))
-    p_pos.append(c2.selectbox("POS Tag", options=POS_OPTIONS, key=f"p_{i}").split(" ")[0])
+    p_words.append(c1.text_input("Word/Regex", value="*", key=f"w_{i}"))
+    p_tags.append(c2.selectbox("POS Tag", options=["Any (*)"] + list(POS_FULL_MAP.keys()), key=f"t_{i}").split(" ")[0])
 
 source = st.sidebar.selectbox("Data Source", ["Upload Files", "DICO-JALF 30", "DICO-JALF ALL"])
 corpus = []
 if source == "Upload Files":
-    up = st.sidebar.file_uploader("Upload files", accept_multiple_files=True)
+    up = st.sidebar.file_uploader("Upload .txt or .xlsx", accept_multiple_files=True)
     if up:
         for f in up: corpus.append({"name": f.name, "text": f.read().decode('utf-8')})
 else:
@@ -138,89 +153,85 @@ else:
     corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
 
 if corpus:
-    results, pos_results, all_global_tokens = [], [], []
+    res_gen, res_pos, global_toks = [], [], []
     for item in corpus:
         data = analyze_text(item['text'], tagger, jlpt_wordlists)
-        all_global_tokens.extend(data["tokens"])
-        total = data["stats"]["Tokens"]
-        lr = LexicalRichness(" ".join([t['surface'] for t in data["tokens"]])) if total > 10 else None
+        global_toks.extend(data["all_tokens"])
+        t_valid = data["stats"]["Total_Valid"]
+        t_all = data["stats"]["Total_All"]
+        lr = LexicalRichness(" ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])) if t_valid > 10 else None
         
+        # 1. General Matrix
         row = {
-            "File": item['name'], "Tokens": total,
-            "TTR": round(len(set([t['lemma'] for t in data["tokens"]]))/total, 3) if total > 0 else 0,
-            "MTLD": round(lr.mtld(), 2) if lr else 0, "Readability": data["stats"]["Readability"], "J-Level": get_jread_level(data["stats"]["Readability"]),
-            "WPS": data["stats"]["WPS"], "Percentage Kango": round(data["stats"]["K_Raw"]/total*100, 2) if total > 0 else 0,
-            "Percentage Wago": round(data["stats"]["H_Raw"]/total*100, 2) if total > 0 else 0,
-            "Percentage Verbs": round(data["stats"]["V_Raw"]/total*100, 2) if total > 0 else 0,
-            "Percentage Particles": round(data["stats"]["P_Raw"]/total*100, 2) if total > 0 else 0,
-            "Kanji%": round(data["stats"]["K_Raw"]/total*100, 1) if total > 0 else 0, "Hira%": round(data["stats"]["H_Raw"]/total*100, 1) if total > 0 else 0,
-            "Kata%": round(data["stats"]["T_Raw"]/total*100, 1) if total > 0 else 0, "Other%": round(data["stats"]["O_Raw"]/total*100, 1) if total > 0 else 0,
-            **data["jgri"]
+            "File": item['name'], "Tokens": t_valid, 
+            "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_valid, 3) if t_valid > 0 else 0,
+            "MTLD": round(lr.mtld(), 2) if lr else 0, 
+            "Readability": data["stats"]["Readability"], "J-Level": get_jread_level(data["stats"]["Readability"]),
+            "WPS": data["stats"]["WPS"], "Kanji%": data["stats"]["K%"], "Hira%": data["stats"]["H%"], "Kata%": data["stats"]["T%"], "Other%": data["stats"]["O%"],
+            **data["jgri_base"]
         }
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
-            row[lvl], row[f"{lvl}%"] = data["jlpt"][lvl], round((data["jlpt"][lvl]/total*100), 1) if total > 0 else 0
-        results.append(row)
+            row[lvl], row[f"{lvl}%"] = data["jlpt"][lvl], round((data["jlpt"][lvl]/t_valid*100), 1) if t_valid > 0 else 0
+        res_gen.append(row)
 
-        p_row = {"File": item['name'], "Tokens": total}
-        for pos_label, count in data["pos_full"].items():
-            p_row[f"{pos_label} (%)"] = round((count/total*100), 2) if total > 0 else 0
-        pos_results.append(p_row)
+        # 2. POS Matrix (14 Categories)
+        p_row = {"File": item['name'], "Total Tokens (Inc. Punc)": t_all}
+        for label, count in data["pos_raw"].items():
+            p_row[f"{label} [Raw]"] = count
+            p_row[f"{label} [%]"] = round((count/t_all*100), 2) if t_all > 0 else 0
+        res_pos.append(p_row)
 
-    df = pd.DataFrame(results)
-    for col in ["MMS", "LD", "VPS", "MPN"]:
-        df[f"z_{col}"] = zscore(df[col]) if df[col].std() != 0 else 0
-    df["JGRI"] = df[[f"z_{col}" for col in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
-    df["Complexity"] = df["JGRI"].apply(get_jgri_interpretation)
+    df_gen = pd.DataFrame(res_gen)
+    for c in ["MMS", "LD", "VPS", "MPN"]:
+        df_gen[f"z_{c}"] = zscore(df_gen[c]) if df_gen[c].std() != 0 else 0
+    df_gen["JGRI"] = df_gen[[f"z_{c}" for c in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
 
-    tab_mat, tab_pos = st.tabs(["📊 General Analysis", "📝 POS Distribution"])
+    # --- TABS ---
+    tab_mat, tab_pos = st.tabs(["📊 General Analysis", "📝 Full POS Distribution"])
+    
     with tab_mat:
-        st.header("Analysis Matrix")
         cfg = {k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}
-        disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "Complexity", "WPS", "Percentage Kango", "Percentage Wago", "Percentage Verbs", "Percentage Particles", "Kanji%", "Hira%", "Kata%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
-        st.dataframe(df[disp], column_config=cfg, use_container_width=True)
+        disp = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "WPS", "Kanji%", "Hira%", "Kata%", "Other%"] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["", "%"]]
+        st.dataframe(df_gen[disp], column_config=cfg, use_container_width=True)
 
-        # --- 📈 Visualizations ---
         st.divider()
         st.header("📈 Visualizations")
-        
         c1, c2 = st.columns(2)
-        c1.plotly_chart(px.bar(df, x="File", y="Tokens", title="1. Tokens per File"), use_container_width=True)
-        c2.plotly_chart(px.bar(df, x="File", y="TTR", title="2. TTR"), use_container_width=True)
+        c1.plotly_chart(px.bar(df_gen, x="File", y="Tokens", title="Tokens per File"), use_container_width=True)
+        c2.plotly_chart(px.bar(df_gen, x="File", y="TTR", title="TTR (Type-Token Ratio)"), use_container_width=True)
         
         c3, c4 = st.columns(2)
-        c3.plotly_chart(px.bar(df, x="File", y="MTLD", title="3. MTLD"), use_container_width=True)
-        c4.plotly_chart(px.bar(df, x="File", y="Readability", title="4. JReadability"), use_container_width=True)
+        c3.plotly_chart(px.bar(df_gen, x="File", y="MTLD", title="MTLD (Lexical Diversity)"), use_container_width=True)
+        c4.plotly_chart(px.bar(df_gen, x="File", y="Readability", title="JReadability Score"), use_container_width=True)
         
-        st.plotly_chart(px.bar(df, x="File", y="JGRI", title="5. JGRI"), use_container_width=True)
+        st.plotly_chart(px.bar(df_gen, x="File", y="JGRI", title="JGRI (Relative Complexity)"), use_container_width=True)
         
-        # 6. Script Distribution (Stacked)
-        df_script = df.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
-        st.plotly_chart(px.bar(df_script, x="File", y="%", color="Script", title="6. Script Distribution (%)", barmode="stack"), use_container_width=True)
+        df_s = df_gen.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
+        st.plotly_chart(px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack"), use_container_width=True)
         
-        # 7. JLPT Distribution (Stacked)
-        df_jlpt = df.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
-        st.plotly_chart(px.bar(df_jlpt, x="File", y="%", color="Level", title="7. JLPT Distribution (%)", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}), use_container_width=True)
+        df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
+        st.plotly_chart(px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}), use_container_width=True)
 
     with tab_pos:
-        st.header("POS Distribution (%)")
-        st.dataframe(pd.DataFrame(pos_results), use_container_width=True)
+        st.header("14-Tier POS Distribution")
+        st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
 
-    # --- N-GRAM PATTERN MATCHING ---
+    # --- N-GRAM SEARCH ---
     st.divider()
-    st.header(f"N-Gram Pattern Results")
+    st.header("Pattern Search Results")
     matches = []
-    for j in range(len(all_global_tokens) - n_gram_val + 1):
-        window, match = all_global_tokens[j : j + n_gram_val], True
-        for idx in range(n_gram_val):
-            w_pat, p_pat = p_words[idx].strip(), p_pos[idx]
-            regex_str = "^" + w_pat.replace("*", ".*") + "$"
-            if w_pat != "*" and not re.search(regex_str, window[idx]['surface']) and not re.search(regex_str, window[idx]['lemma']): match = False; break
-            if p_pat != "Any" and window[idx]['pos'] != p_pat: match = False; break
+    for j in range(len(global_toks) - n_size + 1):
+        window, match = global_toks[j : j + n_size], True
+        for idx in range(n_size):
+            w_p, t_p = p_words[idx].strip(), p_tags[idx]
+            reg = "^" + w_p.replace("*", ".*") + "$"
+            if w_p != "*" and not re.search(reg, window[idx]['surface']) and not re.search(reg, window[idx]['lemma']): match = False; break
+            if t_p != "Any" and window[idx]['pos'] != t_p: match = False; break
         if match: matches.append(" ".join([t['surface'] for t in window]))
     
     if matches:
-        df_g = pd.DataFrame(Counter(matches).most_common(10), columns=['Sequence', 'Raw Freq'])
-        df_g['Freq (PMW)'] = df_g['Raw Freq'].apply(lambda x: round((x / len(all_global_tokens)) * 1_000_000, 2))
-        st.dataframe(df_g, use_container_width=True)
-    else: st.warning("No patterns matched.")
-else: st.info("Awaiting data input...")
+        df_n = pd.DataFrame(Counter(matches).most_common(10), columns=['Sequence', 'Raw Freq'])
+        df_n['PMW'] = df_n['Raw Freq'].apply(lambda x: round((x / len(global_toks)) * 1_000_000, 2))
+        st.dataframe(df_n, use_container_width=True)
+    else: st.warning("No sequences matched the specified pattern.")
+else: st.info("Upload files or select data to begin.")
