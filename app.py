@@ -30,11 +30,26 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Corpus size: Total number of valid tokens.",
-    "TTR": "Type-Token Ratio.",
-    "MTLD": "Lexical Diversity (Length-independent).",
-    "Readability": "JReadability Score (Lee & Hasebe).",
-    "JGRI": "Relative Complexity (Z-score average of MMS, LD, VPS, and MPN)."
+    "Tokens": "Total count of valid linguistic tokens (excluding punctuation). Larger samples (>100) provide more reliable diversity scores.",
+    "TTR": "Type-Token Ratio (Unique Words / Total Words). < 0.45: Repetitive/Limited; 0.45 - 0.65: Balanced; > 0.65: High Lexical Variation.",
+    "MTLD": "Measure of Textual Lexical Diversity. Length-independent. < 40: Basic/Elementary; 40 - 80: Intermediate; > 80: Advanced/Sophisticated.",
+    "Readability": "JReadability (Lee & Hasebe). 5.5-6.5: L-Elem; 4.5-5.5: U-Elem; 3.5-4.5: L-Int; 2.5-3.5: U-Int; 1.5-2.5: L-Adv; 0.5-1.5: U-Adv.",
+    "J-Level": "Pedagogical level assigned based on the JReadability score, mapped to standard Japanese language curricula.",
+    "JGRI": "Japanese Grammatical Relationship Index. Relative complexity based on corpus Z-scores. < -0.5: Simple structure; -0.5 to 0.5: Standard; > 0.5: Complex/Nested grammar.",
+    "WPS": "Mean Words Per Sentence (Tokens / Sentences). < 10: Simple; 10 - 20: Standard Academic; > 20: Complex/Subordinated.",
+    "Kanji%": "Percentage of tokens written in Kanji. Higher % (e.g., >30%) correlates with formal, academic, or professional registers.",
+    "Hira%": "Percentage of tokens in Hiragana. High % (e.g., >60%) indicates elementary level or oral-style communication.",
+    "Kata%": "Percentage of tokens in Katakana. High % usually indicates technical texts or heavy use of loanwords.",
+    "MMS": "Mean Length of Sentence. (Z-score base for JGRI).",
+    "LD": "Lexical Density (Content Words / Total). (Z-score base for JGRI).",
+    "VPS": "Verbs Per Sentence. Measures clause nesting. (Z-score base for JGRI).",
+    "MPN": "Modifier-to-Noun Ratio (Adverb/Noun). Measures descriptive depth. (Z-score base for JGRI).",
+    "N1%": "Lexical difficulty: % of words found in JLPT N1 (Advanced) lists.",
+    "N2%": "Lexical difficulty: % of words found in JLPT N2 (Upper-Intermediate) lists.",
+    "N3%": "Lexical difficulty: % of words found in JLPT N3 (Intermediate) lists.",
+    "N4%": "Lexical difficulty: % of words found in JLPT N4 (Elementary) lists.",
+    "N5%": "Lexical difficulty: % of words found in JLPT N5 (Introductory) lists.",
+    "NA%": "Tokens not found in JLPT N1-N5 lists (Proper nouns, slang, or specialized vocabulary)."
 }
 
 # ===============================================
@@ -102,6 +117,8 @@ def analyze_text(text, filename, tagger, jlpt_lists):
     ph = (scripts["H"]/total_tokens_valid*100) if total_tokens_valid > 0 else 0
     pv = (pos_counts_raw["Verb (動詞)"]/total_tokens_valid*100) if total_tokens_valid > 0 else 0
     pp = (pos_counts_raw["Particle (助詞)"]/total_tokens_valid*100) if total_tokens_valid > 0 else 0
+    
+    # Lee & Hasebe JReadability Formula
     jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
@@ -163,10 +180,19 @@ if corpus:
         global_toks_all.extend(data["all_tokens"])
         t_v, t_a = data["stats"]["T_Valid"], data["stats"]["T_All"]
         lr = LexicalRichness(" ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])) if t_v > 10 else None
-        row = {"File": item['name'], "Tokens": t_v, "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0, "MTLD": round(lr.mtld(), 2) if lr else 0, "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]), "WPS": data["stats"]["WPS"], "Kanji%": data["stats"]["K%"], "Hira%": data["stats"]["H%"], "Kata%": data["stats"]["T%"], "Other%": data["stats"]["O%"], **data["jgri_base"]}
+        
+        row = {
+            "File": item['name'], "Tokens": t_v, 
+            "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0, 
+            "MTLD": round(lr.mtld(), 2) if lr else 0, 
+            "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]), 
+            "WPS": data["stats"]["WPS"], "Kanji%": data["stats"]["K%"], "Hira%": data["stats"]["H%"], "Kata%": data["stats"]["T%"], "Other%": data["stats"]["O%"], 
+            **data["jgri_base"]
+        }
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
             row[f"{lvl}%"] = round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
         res_gen.append(row)
+        
         p_row = {"File": item['name']}
         for label, count in data["pos_raw"].items():
             p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
@@ -181,7 +207,9 @@ if corpus:
     
     with tab_mat:
         st.header("Analysis Matrix")
-        st.dataframe(df_gen, column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
+        # Explicit column ordering for clarity
+        cols_to_show = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "WPS", "Kanji%", "Hira%", "Kata%"] + [f"N{i}%" for i in range(1,6)] + ["NA%"]
+        st.dataframe(df_gen[cols_to_show], column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
 
         st.divider()
         st.header("🔍 Pattern Search & Concordance (KWIC)")
@@ -224,6 +252,8 @@ if corpus:
         st.divider()
         st.header("📈 Visualizations")
         cloud_toks = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
+        
+        
         if cloud_toks and os.path.exists("NotoSansJP[wght].ttf"):
             wc = WordCloud(font_path="NotoSansJP[wght].ttf", background_color="white", width=800, height=350).generate(" ".join(cloud_toks))
             fig_cloud, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wc); ax.axis("off"); st.pyplot(fig_cloud)
@@ -233,12 +263,14 @@ if corpus:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True); add_html_download_button(fig, col_name)
 
+        
         df_s = df_gen.melt(id_vars=["File"], value_vars=["Kanji%", "Hira%", "Kata%", "Other%"], var_name="Script", value_name="%")
         fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True); add_html_download_button(fig_s, "Script_Dist")
 
+        
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
-        fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", template="plotly_white")
+        fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
         st.plotly_chart(fig_j, use_container_width=True); add_html_download_button(fig_j, "JLPT_Dist")
 
     with tab_pos:
