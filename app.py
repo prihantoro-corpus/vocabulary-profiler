@@ -32,7 +32,7 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Total valid linguistic tokens (excluding punctuation).",
+    "Tokens": "Total valid tokens (excluding punctuation).",
     "TTR": "Unique Words / Total Words. Variety measure.",
     "MTLD": "Lexical Diversity score (length-independent).",
     "Readability": "JReadability (Lee & Hasebe). Lower = harder.",
@@ -44,8 +44,6 @@ TOOLTIPS = {
     "H(raw)": "Count of Hiragana script tokens.", "H%": "Percentage of Hiragana characters.",
     "T(raw)": "Count of Katakana script tokens.", "T%": "Percentage of Katakana characters.",
     "O(raw)": "Count of Other script tokens.", "O%": "Percentage of Other characters.",
-    "V(raw)": "Count of Verbs.", "V%": "Verb density percentage.",
-    "P(raw)": "Count of Particles.", "P%": "Particle density percentage."
 }
 
 # Add JLPT and Routledge Tooltips
@@ -66,7 +64,7 @@ def add_html_download_button(fig, filename):
     buffer = io.StringIO()
     fig.write_html(buffer, include_plotlyjs='cdn')
     html_bytes = buffer.getvalue().encode()
-    st.download_button(label=f"📥 Download {fig.layout.title.text} (HTML)", data=html_bytes, file_name=f"{filename}.html", mime="text/html")
+    st.download_button(label=f"📥 Download Chart (HTML)", data=html_bytes, file_name=f"{filename}.html", mime="text/html")
 
 @st.cache_data
 def load_jlpt_wordlists():
@@ -81,23 +79,35 @@ def load_jlpt_wordlists():
 @st.cache_data
 def load_routledge_wordlist():
     df = None
-    if os.path.exists(ROUTLEDGE_FILENAME):
-        df = pd.read_csv(ROUTLEDGE_FILENAME)
-    else:
+    # Try different encodings for Excel-exported CSVs
+    for enc in ['utf-8-sig', 'utf-8', 'cp932', 'shift_jis']:
+        try:
+            if os.path.exists(ROUTLEDGE_FILENAME):
+                df = pd.read_csv(ROUTLEDGE_FILENAME, encoding=enc)
+                break
+        except: continue
+    
+    if df is None:
         try:
             df = pd.read_csv(ROUTLEDGE_URL)
         except: return {}
     
     rout_map = {}
     if df is not None:
+        # Sort by Rank ascending to ensure the most frequent rank is processed first
+        if 'Rank' in df.columns:
+            df = df.sort_values(by='Rank', ascending=True)
+            
         for _, row in df.iterrows():
-            level = str(row['Level']).strip()
+            level = str(row['Level']).strip().upper()
             # Map Hiragana, Katakana, and Kanji columns for matching
             for col in ['hiragana', 'katakana', 'kanji']:
                 if col in df.columns:
                     val = str(row[col]).strip()
                     if val and val.lower() != 'nan' and val != '':
-                        rout_map[val] = level
+                        # Only add if it doesn't exist to PRESERVE highest frequency level
+                        if val not in rout_map:
+                            rout_map[val] = level
     return rout_map
 
 def katakana_to_hiragana(text):
@@ -124,7 +134,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     for n in nodes:
         if n.surface:
             f = n.feature
-            # Unidic indices: 0: POS, 7: Lemma Orthography, 10: Reading (Katakana)
+            # Unidic indices vary; index 7 is often lemma orthography
             lemma_orth = n.surface
             reading_kata = ""
             if len(f) >= 8:
@@ -175,6 +185,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
         # Match Routledge
         found_rout = False
         r_hira = katakana_to_hiragana(n['reading'])
+        # Checks Surface (for particles), Lemma (for verbs), and readings
         for check in [n['surface'], n['lemma'], r_hira, n['reading']]:
             if check and check in routledge_list:
                 lvl = routledge_list[check]
@@ -230,6 +241,13 @@ if st.sidebar.text_input("Access Password", type="password") != "112233":
     st.stop()
 
 tagger, jlpt_wordlists, rout_list = Tagger(), load_jlpt_wordlists(), load_routledge_wordlist()
+
+# Diagnostics in sidebar
+if not rout_list:
+    st.sidebar.error("⚠️ Routledge 5000 list not loaded.")
+else:
+    st.sidebar.success(f"✅ Routledge list loaded: {len(rout_list)} items.")
+
 st.title("📖 Japanese Text Vocabulary Profiler")
 
 st.sidebar.divider()
