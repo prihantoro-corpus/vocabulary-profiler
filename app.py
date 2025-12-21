@@ -19,7 +19,8 @@ import os
 
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
-ROUTLEDGE_FILE = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
+ROUTLEDGE_FILENAME = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
+ROUTLEDGE_URL = GITHUB_BASE + "Routledge%205000%20Vocab%20ONLY.xlsx%20-%20Sheet1.csv"
 
 POS_FULL_MAP = {
     "Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞",
@@ -31,27 +32,34 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Total valid linguistic tokens (excl. punctuation). Samples >100 are more reliable.",
-    "TTR": "Unique Words / Total Words. <0.45: Repetitive; 0.45-0.65: Balanced; >0.65: High Variation.",
-    "MTLD": "Lexical Diversity (length-independent). <40: Basic; 40-80: Intermediate; >80: Advanced.",
-    "Readability": "JReadability Score. Lower is harder. 0.5-1.5: U-Adv; 2.5-3.5: U-Int; 4.5-5.5: U-Elem.",
-    "J-Level": "Pedagogical level assigned based on the JReadability score.",
-    "JGRI": "Relative Grammatical Complexity (Z-score average). Values centered around 0.0.",
-    "JGRI Interp": "Interpretation: < -0.5: Simple; -0.5 to 0.5: Standard; > 0.5: Complex/Nested.",
-    "WPS": "Mean words per sentence. <10: Simple/Direct; 10-20: Standard; >20: Complex.",
-    "K(raw)": "Raw count of Kanji characters.",
-    "K%": "Percentage of Kanji characters.",
-    "H(raw)": "Raw count of Hiragana characters.",
-    "H%": "Percentage of Hiragana characters.",
-    "T(raw)": "Raw count of Katakana characters.",
-    "T%": "Percentage of Katakana characters.",
-    "O(raw)": "Raw count of Other characters (numbers, latin, etc.).",
+    "Tokens": "Total valid tokens (excl. punctuation). Samples >100 are most reliable.",
+    "TTR": "Unique Words / Total Words. Variety measure.",
+    "MTLD": "Lexical Diversity (Length-independent). Higher means more diverse vocabulary.",
+    "Readability": "JReadability (Lee & Hasebe). Lower score = Higher difficulty.",
+    "J-Level": "Pedagogical level based on JReadability score.",
+    "JGRI": "Grammatical Complexity Index. Higher = more clausal nesting/complexity.",
+    "JGRI Interp": "Interpretation: Simple, Standard, or Complex grammar.",
+    "WPS": "Words Per Sentence. Key syntactic complexity indicator.",
+    "K(raw)": "Count of Kanji script tokens.",
+    "K%": "Percentage of Kanji characters. Formal/Academic texts show higher %.",
+    "H(raw)": "Count of Hiragana script tokens.",
+    "H%": "Percentage of Hiragana. Introductory/Oral texts show higher %.",
+    "T(raw)": "Count of Katakana script tokens.",
+    "T%": "Percentage of Katakana. Modern/Technical loanword indicator.",
+    "O(raw)": "Count of Other script tokens (Latin/Numbers).",
     "O%": "Percentage of Other characters.",
-    "V(raw)": "Raw count of Verbs.",
-    "V%": "Percentage of Verbs.",
-    "P(raw)": "Raw count of Particles.",
-    "P%": "Percentage of Particles."
+    "V(raw)": "Count of Verbs.", "V%": "Verb density.",
+    "P(raw)": "Count of Particles.", "P%": "Particle density.",
 }
+# Add Dynamic Tooltips for JLPT and Routledge
+for l in ["N1","N2","N3","N4","N5","NA"]:
+    TOOLTIPS[f"{l}(raw)"] = f"Number of words matching JLPT {l} wordlist."
+    TOOLTIPS[f"{l}%"] = f"Percentage of text composed of JLPT {l} vocabulary."
+for i in range(1, 6):
+    TOOLTIPS[f"TOP-{i}000(raw)"] = f"Count of words in the Routledge Top {i}000 frequency list."
+    TOOLTIPS[f"TOP-{i}000%"] = f"Percentage of text in the Routledge Top {i}000 range."
+TOOLTIPS["TOP-NA(raw)"] = "Words not found in the Routledge Top 5000 list."
+TOOLTIPS["TOP-NA%"] = "Percentage of words outside the Top 5000 range."
 
 # ===============================================
 # --- 2. UTILITY & LINGUISTIC FUNCTIONS ---
@@ -75,21 +83,24 @@ def load_jlpt_wordlists():
 
 @st.cache_data
 def load_routledge_wordlist():
-    try:
-        df = pd.read_csv(ROUTLEDGE_FILE)
-        rout_map = {}
+    # Try local first, then GitHub
+    df = None
+    if os.path.exists(ROUTLEDGE_FILENAME):
+        df = pd.read_csv(ROUTLEDGE_FILENAME)
+    else:
+        try:
+            df = pd.read_csv(ROUTLEDGE_URL)
+        except: return {}
+    
+    rout_map = {}
+    if df is not None:
         for _, row in df.iterrows():
             level = str(row['Level']).strip()
-            # Map hiragana, katakana, and kanji columns to the level
             for col in ['hiragana', 'katakana', 'kanji']:
-                if col in df.columns:
-                    val = str(row[col]).strip()
-                    if val and val != 'nan' and val != '':
-                        rout_map[val] = level
-        return rout_map
-    except Exception as e:
-        st.error(f"Error loading Routledge data: {e}")
-        return {}
+                val = str(row[col]).strip()
+                if val and val != 'nan' and val != '':
+                    rout_map[val] = level
+    return rout_map
 
 def katakana_to_hiragana(text):
     if not text: return ""
@@ -115,14 +126,9 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     for n in nodes:
         if n.surface:
             lemma = n.feature.orth if hasattr(n.feature, 'orth') and n.feature.orth else n.surface
+            # Unidic usually provides reading in katakana
             reading = getattr(n.feature, 'kana', '') or ''
-            all_nodes.append({
-                "surface": n.surface,
-                "lemma": lemma,
-                "reading": reading,
-                "pos": n.feature.pos1,
-                "file": filename
-            })
+            all_nodes.append({"surface": n.surface, "lemma": lemma, "reading": reading, "pos": n.feature.pos1, "file": filename})
     
     valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
@@ -144,7 +150,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     rout_counts["TOP-NA"] = 0
 
     for n in valid_nodes:
-        # JLPT profiling
+        # JLPT Match
         found_jlpt = False
         for lvl in ["N1", "N2", "N3", "N4", "N5"]:
             if n['lemma'] in jlpt_lists[lvl]:
@@ -153,12 +159,11 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 break
         if not found_jlpt: jlpt_counts["NA"] += 1
 
-        # Routledge profiling (checks surface, lemma, and reading)
+        # Routledge Triple-Check (Surface, Lemma, Reading-Hira/Kata)
         found_rout = False
-        reading_kata = n['reading']
-        reading_hira = katakana_to_hiragana(reading_kata)
-        
-        for check in [n['surface'], n['lemma'], reading_kata, reading_hira]:
+        r_kata = n['reading']
+        r_hira = katakana_to_hiragana(r_kata)
+        for check in [n['surface'], n['lemma'], r_kata, r_hira]:
             if check and check in routledge_list:
                 lvl = routledge_list[check]
                 if lvl in rout_counts:
@@ -182,9 +187,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
             "T_raw": t_raw, "T%": round(pt, 1), "O_raw": o_raw, "O%": round(po, 1),
             "V_raw": v_raw, "V%": round(pv, 1), "P_raw": p_raw, "P%": round(pp, 1)
         },
-        "jlpt": jlpt_counts, 
-        "rout": rout_counts,
-        "pos_raw": pos_counts_raw,
+        "jlpt": jlpt_counts, "rout": rout_counts, "pos_raw": pos_counts_raw,
         "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": v_raw/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
     }
 
@@ -211,7 +214,7 @@ else:
     corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
 
 if st.sidebar.text_input("Access Password", type="password") != "112233":
-    st.info("Enter the password to unlock analysis.")
+    st.info("Please enter the password to unlock analysis.")
     st.stop()
 
 tagger, jlpt_wordlists, routledge_list = Tagger(), load_jlpt_wordlists(), load_routledge_wordlist()
@@ -254,17 +257,13 @@ if corpus:
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
             row[f"{lvl}(raw)"] = data["jlpt"][lvl]
             row[f"{lvl}%"] = round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
-        
-        # Add Routledge metrics
         for i in range(1, 6):
-            lvl = f"TOP-{i}000"
-            row[f"{lvl}(raw)"] = data["rout"][lvl]
-            row[f"{lvl}%"] = round((data["rout"][lvl]/t_v*100), 1) if t_v > 0 else 0
+            row[f"TOP-{i}000(raw)"] = data["rout"][f"TOP-{i}000"]
+            row[f"TOP-{i}000%"] = round((data["rout"][f"TOP-{i}000"]/t_v*100), 1) if t_v > 0 else 0
         row["TOP-NA(raw)"] = data["rout"]["TOP-NA"]
         row["TOP-NA%"] = round((data["rout"]["TOP-NA"]/t_v*100), 1) if t_v > 0 else 0
 
         res_gen.append(row)
-        
         p_row = {"File": item['name']}
         for label, count in data["pos_raw"].items():
             p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
@@ -293,7 +292,6 @@ if corpus:
         st.header("🔍 Pattern Search & Concordance (KWIC)")
         filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
         t_filtered = len(filtered_toks)
-        
         matches_data, concordance_rows = [], []
         for j in range(t_filtered - n_size + 1):
             window, match = filtered_toks[j : j + n_size], True
@@ -304,7 +302,6 @@ if corpus:
                 w_match = (w_p_in == "*") or (re.search("^"+w_p_in.replace("*", ".*")+"$", tok_surf) or re.search("^"+w_p_in.replace("*", ".*")+"$", tok_lem))
                 p_match = (t_p_in == "Any (*)") or (target_tag in tok_pos)
                 if not (w_match and p_match): match = False; break
-            
             if match:
                 txt, tags = " ".join([t['surface'] for t in window]), " + ".join([t['pos'] for t in window])
                 matches_data.append((txt, tags))
@@ -319,13 +316,11 @@ if corpus:
                 df_counts = pd.DataFrame([{"Sequence": k[0], "POS": k[1], "Raw Freq": v} for k, v in Counter(matches_data).most_common()])
                 df_counts['PMW'] = df_counts['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
                 st.dataframe(df_counts.head(10), use_container_width=True)
-                st.download_button("📥 Download N-Grams", df_counts.to_csv(index=False).encode('utf-8-sig'), "ngrams.csv")
             with c2:
                 st.subheader("Concordance (KWIC)")
                 df_conc = pd.DataFrame(concordance_rows)
                 st.dataframe(df_conc.head(10), use_container_width=True)
-                st.download_button("📥 Download Concordance", df_conc.to_csv(index=False).encode('utf-8-sig'), "concordance.csv")
-        else: st.warning("No matches found.")
+        else: st.warning("No matches.")
 
         st.divider()
         st.header("📈 Visualizations")
@@ -337,21 +332,22 @@ if corpus:
         v_list = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
         for col_name, title_name in v_list:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
-            st.plotly_chart(fig, use_container_width=True); add_html_download_button(fig, col_name)
+            st.plotly_chart(fig, use_container_width=True)
 
+        # FIXED Visualization: Script Distribution
         df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
-        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
-        st.plotly_chart(fig_s, use_container_width=True); add_html_download_button(fig_s, "Script_Dist")
+        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution (Kanji, Hira, Kata, Other)", barmode="stack", template="plotly_white")
+        st.plotly_chart(fig_s, use_container_width=True)
 
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
-        st.plotly_chart(fig_j, use_container_width=True); add_html_download_button(fig_j, "JLPT_Dist")
+        st.plotly_chart(fig_j, use_container_width=True)
 
-        # New Routledge Visualisation
-        rout_plot_cols = [f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"]
-        df_r = df_gen.melt(id_vars=["File"], value_vars=rout_plot_cols, var_name="Routledge Rank", value_name="%")
+        # NEW Visualization: Routledge Distribution
+        r_cols = [f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"]
+        df_r = df_gen.melt(id_vars=["File"], value_vars=r_cols, var_name="Routledge Rank", value_name="%")
         fig_r = px.bar(df_r, x="File", y="%", color="Routledge Rank", title="Routledge Frequency Rank Distribution (Top 5000)", barmode="stack", template="plotly_white")
-        st.plotly_chart(fig_r, use_container_width=True); add_html_download_button(fig_r, "Routledge_Dist")
+        st.plotly_chart(fig_r, use_container_width=True)
 
     with tab_pos:
         st.header("14-Tier POS Distribution (%)")
