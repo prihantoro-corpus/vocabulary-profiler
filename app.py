@@ -19,7 +19,7 @@ import os
 
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
-ROUTLEDGE_URL = GITHUB_BASE + "Routledge%205000%20Vocab%20ONLY.xlsx%20-%20Sheet1.csv"
+ROUTLEDGE_FILE = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
 
 POS_FULL_MAP = {
     "Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞",
@@ -31,7 +31,7 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Total valid linguistic tokens (excl. punctuation).",
+    "Tokens": "Total valid linguistic tokens (excl. punctuation). Samples >100 are more reliable.",
     "TTR": "Unique Words / Total Words. <0.45: Repetitive; 0.45-0.65: Balanced; >0.65: High Variation.",
     "MTLD": "Lexical Diversity (length-independent). <40: Basic; 40-80: Intermediate; >80: Advanced.",
     "Readability": "JReadability Score. Lower is harder. 0.5-1.5: U-Adv; 2.5-3.5: U-Int; 4.5-5.5: U-Elem.",
@@ -76,18 +76,24 @@ def load_jlpt_wordlists():
 @st.cache_data
 def load_routledge_wordlist():
     try:
-        df = pd.read_csv(ROUTLEDGE_URL)
-        # Create a mapping of lemma/hiragana to their TOP level
-        # Assuming CSV has 'Level', 'hiragana', 'katakana', 'kanji'
+        df = pd.read_csv(ROUTLEDGE_FILE)
         rout_map = {}
         for _, row in df.iterrows():
-            level = str(row['Level'])
+            level = str(row['Level']).strip()
+            # Map hiragana, katakana, and kanji columns to the level
             for col in ['hiragana', 'katakana', 'kanji']:
-                val = str(row[col])
-                if val and val != 'nan':
-                    rout_map[val] = level
+                if col in df.columns:
+                    val = str(row[col]).strip()
+                    if val and val != 'nan' and val != '':
+                        rout_map[val] = level
         return rout_map
-    except: return {}
+    except Exception as e:
+        st.error(f"Error loading Routledge data: {e}")
+        return {}
+
+def katakana_to_hiragana(text):
+    if not text: return ""
+    return "".join([chr(ord(c) - 0x60) if "\u30a1" <= c <= "\u30f6" else c for c in text])
 
 def get_jread_level(score):
     if 0.5 <= score < 1.5: return "Upper-advanced"
@@ -109,7 +115,14 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     for n in nodes:
         if n.surface:
             lemma = n.feature.orth if hasattr(n.feature, 'orth') and n.feature.orth else n.surface
-            all_nodes.append({"surface": n.surface, "lemma": lemma, "pos": n.feature.pos1, "file": filename})
+            reading = getattr(n.feature, 'kana', '') or ''
+            all_nodes.append({
+                "surface": n.surface,
+                "lemma": lemma,
+                "reading": reading,
+                "pos": n.feature.pos1,
+                "file": filename
+            })
     
     valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
@@ -131,7 +144,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     rout_counts["TOP-NA"] = 0
 
     for n in valid_nodes:
-        # JLPT check
+        # JLPT profiling
         found_jlpt = False
         for lvl in ["N1", "N2", "N3", "N4", "N5"]:
             if n['lemma'] in jlpt_lists[lvl]:
@@ -140,12 +153,14 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 break
         if not found_jlpt: jlpt_counts["NA"] += 1
 
-        # Routledge check
+        # Routledge profiling (checks surface, lemma, and reading)
         found_rout = False
-        # Check lemma, then surface
-        for key in [n['lemma'], n['surface']]:
-            if key in routledge_list:
-                lvl = routledge_list[key]
+        reading_kata = n['reading']
+        reading_hira = katakana_to_hiragana(reading_kata)
+        
+        for check in [n['surface'], n['lemma'], reading_kata, reading_hira]:
+            if check and check in routledge_list:
+                lvl = routledge_list[check]
                 if lvl in rout_counts:
                     rout_counts[lvl] += 1
                     found_rout = True
@@ -168,7 +183,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
             "V_raw": v_raw, "V%": round(pv, 1), "P_raw": p_raw, "P%": round(pp, 1)
         },
         "jlpt": jlpt_counts, 
-        "routledge": rout_counts,
+        "rout": rout_counts,
         "pos_raw": pos_counts_raw,
         "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": v_raw/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
     }
@@ -196,7 +211,7 @@ else:
     corpus = [{"name": str(r[0]), "text": str(r[1])} for _, r in df_pre.iterrows()]
 
 if st.sidebar.text_input("Access Password", type="password") != "112233":
-    st.info("Enter the password to start your analysis.")
+    st.info("Enter the password to unlock analysis.")
     st.stop()
 
 tagger, jlpt_wordlists, routledge_list = Tagger(), load_jlpt_wordlists(), load_routledge_wordlist()
@@ -236,19 +251,20 @@ if corpus:
             "P(raw)": data["stats"]["P_raw"], "P%": data["stats"]["P%"],
             **data["jgri_base"]
         }
-        # Add JLPT raw and %
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
             row[f"{lvl}(raw)"] = data["jlpt"][lvl]
             row[f"{lvl}%"] = round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
-        # Add Routledge raw and %
+        
+        # Add Routledge metrics
         for i in range(1, 6):
             lvl = f"TOP-{i}000"
-            row[f"{lvl}(raw)"] = data["routledge"][lvl]
-            row[f"{lvl}%"] = round((data["routledge"][lvl]/t_v*100), 1) if t_v > 0 else 0
-        row["TOP-NA(raw)"] = data["routledge"]["TOP-NA"]
-        row["TOP-NA%"] = round((data["routledge"]["TOP-NA"]/t_v*100), 1) if t_v > 0 else 0
+            row[f"{lvl}(raw)"] = data["rout"][lvl]
+            row[f"{lvl}%"] = round((data["rout"][lvl]/t_v*100), 1) if t_v > 0 else 0
+        row["TOP-NA(raw)"] = data["rout"]["TOP-NA"]
+        row["TOP-NA%"] = round((data["rout"]["TOP-NA"]/t_v*100), 1) if t_v > 0 else 0
 
         res_gen.append(row)
+        
         p_row = {"File": item['name']}
         for label, count in data["pos_raw"].items():
             p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
@@ -314,7 +330,6 @@ if corpus:
         st.divider()
         st.header("📈 Visualizations")
         cloud_toks = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
-        
         if cloud_toks and os.path.exists("NotoSansJP[wght].ttf"):
             wc = WordCloud(font_path="NotoSansJP[wght].ttf", background_color="white", width=800, height=350).generate(" ".join(cloud_toks))
             fig_cloud, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wc); ax.axis("off"); st.pyplot(fig_cloud)
@@ -331,11 +346,11 @@ if corpus:
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
         st.plotly_chart(fig_j, use_container_width=True); add_html_download_button(fig_j, "JLPT_Dist")
-        
-        # NEW Visualization: Routledge Distribution
-        rout_cols = [f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"]
-        df_r = df_gen.melt(id_vars=["File"], value_vars=rout_cols, var_name="Frequency Rank", value_name="%")
-        fig_r = px.bar(df_r, x="File", y="%", color="Frequency Rank", title="Routledge Frequency Rank Distribution (Top 5000)", barmode="stack", template="plotly_white")
+
+        # New Routledge Visualisation
+        rout_plot_cols = [f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"]
+        df_r = df_gen.melt(id_vars=["File"], value_vars=rout_plot_cols, var_name="Routledge Rank", value_name="%")
+        fig_r = px.bar(df_r, x="File", y="%", color="Routledge Rank", title="Routledge Frequency Rank Distribution (Top 5000)", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_r, use_container_width=True); add_html_download_button(fig_r, "Routledge_Dist")
 
     with tab_pos:
