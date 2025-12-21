@@ -20,7 +20,7 @@ import os
 # URL configuration
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
-# The Raw GitHub URL for the Excel file as requested
+# Using the Raw GitHub link for the Excel file as requested
 ROUTLEDGE_URL = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/Routledge%205000%20Vocab%20ONLY.xlsx"
 LOCAL_ROUTLEDGE_CSV = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
 
@@ -36,12 +36,12 @@ POS_FULL_MAP = {
 TOOLTIPS = {
     "Tokens": "Total valid linguistic tokens (excluding punctuation).",
     "TTR": "Unique Words / Total Words (Lexical Variety).",
-    "MTLD": "Measure of Textual Lexical Diversity (length-independent).",
-    "Readability": "JReadability (Lee & Hasebe). Lower = harder.",
+    "MTLD": "Measure of Textual Lexical Diversity (length-independent). Higher = more diverse.",
+    "Readability": "JReadability (Lee & Hasebe). Lower score means higher difficulty.",
     "J-Level": "Pedagogical level assigned based on JReadability score.",
-    "JGRI": "Relative Grammatical Complexity (Z-score average).",
-    "JGRI Interp": "Interpretation: Simple (< -0.5), Standard, or Complex (> 0.5).",
-    "WPS": "Mean words per sentence.",
+    "JGRI": "Japanese Grammatical Relationship Index. Standardized complexity score.",
+    "JGRI Interp": "Interpretation: < -0.5: Simple; -0.5 to 0.5: Standard; > 0.5: Complex.",
+    "WPS": "Mean words per sentence. Syntactic complexity indicator.",
     "K(raw)": "Count of Kanji script tokens.", "K%": "Percentage of Kanji characters.",
     "H(raw)": "Count of Hiragana script tokens.", "H%": "Percentage of Hiragana characters.",
     "T(raw)": "Count of Katakana script tokens.", "T%": "Percentage of Katakana characters.",
@@ -52,12 +52,12 @@ TOOLTIPS = {
 
 # Add JLPT and Routledge Tooltips
 for l in ["N1","N2","N3","N4","N5","NA"]:
-    TOOLTIPS[f"{l}(raw)"] = f"Count of words matching JLPT {l}."
-    TOOLTIPS[f"{l}%"] = f"Percentage of text in JLPT {l}."
+    TOOLTIPS[f"{l}(raw)"] = f"Count of words matching JLPT {l} level."
+    TOOLTIPS[f"{l}%"] = f"Percentage of text in JLPT {l} level."
 for i in range(1, 6):
-    TOOLTIPS[f"TOP-{i}000(raw)"] = f"Count of words in Routledge Top {i}000."
-    TOOLTIPS[f"TOP-{i}000%"] = f"Percentage of text in Routledge Top {i}000."
-TOOLTIPS["TOP-NA(raw)"] = "Words not found in Routledge Top 5000."
+    TOOLTIPS[f"TOP-{i}000(raw)"] = f"Count of words in Routledge Top {i}000 list."
+    TOOLTIPS[f"TOP-{i}000%"] = f"Percentage of text in Routledge Top {i}000 list."
+TOOLTIPS["TOP-NA(raw)"] = "Words not found in Routledge Top 5000 list."
 TOOLTIPS["TOP-NA%"] = "Percentage of words outside Top 5000."
 
 # ===============================================
@@ -88,7 +88,6 @@ def load_routledge_wordlist():
         try:
             df = pd.read_csv(LOCAL_ROUTLEDGE_CSV, encoding='utf-8-sig')
         except: pass
-    
     # 2. Try Raw GitHub Excel
     if df is None:
         try:
@@ -96,7 +95,6 @@ def load_routledge_wordlist():
             if resp.status_code == 200:
                 df = pd.read_excel(io.BytesIO(resp.content))
         except: pass
-        
     # 3. Try GitHub CSV Fallback
     if df is None:
         try:
@@ -106,9 +104,9 @@ def load_routledge_wordlist():
 
     rout_map = {}
     if df is not None:
-        # Normalize columns to lowercase
+        # Normalize columns to lowercase to handle Excel/CSV differences
         df.columns = [str(c).lower().strip() for c in df.columns]
-        # Sort by Rank (ascending) to ensure the highest frequency rank is processed first
+        # Sort by Rank to ensure the particle "は" (Rank 2) takes priority over the noun "は"
         if 'rank' in df.columns:
             df['rank'] = pd.to_numeric(df['rank'], errors='coerce')
             df = df.sort_values(by='rank', ascending=True)
@@ -117,15 +115,14 @@ def load_routledge_wordlist():
             level = str(row.get('level', '')).strip().upper()
             if not level: continue
             
-            # Extract forms from columns: hiragana (3), katakana (4), kanji (5)
-            # We try column names first, then positional fallback
+            # Map forms from all script columns
             forms = []
             for col in ['hiragana', 'katakana', 'kanji']:
                 val = str(row.get(col, '')).strip()
                 if val and val.lower() != 'nan' and val != '':
                     forms.append(val)
             
-            # Positional fallback (Col 2, 3, 4 are Hiragana, Katakana, Kanji)
+            # Positional fallback (Col index 2, 3, 4)
             if not forms:
                 try:
                     for i in [2, 3, 4]:
@@ -135,7 +132,7 @@ def load_routledge_wordlist():
                 except: pass
             
             for f in forms:
-                # IMPORTANT: Only add if not present to keep the HIGHEST frequency level
+                # Priority mapping: first come (highest frequency) stays
                 if f not in rout_map:
                     rout_map[f] = level
     return rout_map
@@ -389,23 +386,27 @@ if corpus:
             wc = WordCloud(font_path="NotoSansJP[wght].ttf", background_color="white", width=800, height=350).generate(" ".join(cloud_toks))
             fig_cloud, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wc); ax.axis("off"); st.pyplot(fig_cloud)
 
-        v_list = [("Tokens", "Tokens per File"), ("TTR", "Type-Token Ratio"), ("Readability", "JReadability Score"), ("JGRI", "JGRI Complexity")]
+        v_list = [
+            ("Tokens", "Tokens per File"), 
+            ("TTR", "Type-Token Ratio"), 
+            ("MTLD", "Lexical Diversity (MTLD)"), 
+            ("Readability", "JReadability Score"), 
+            ("JGRI", "Complexity Score")
+        ]
         for col_name, title_name in v_list:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True); add_html_download_button(fig, col_name)
 
-        df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
-        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution (Kanji, Hira, Kata, Other)", barmode="stack", template="plotly_white")
+        df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%"], var_name="Script", value_name="%")
+        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution (Kanji, Hira)", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True); add_html_download_button(fig_s, "Script_Dist")
 
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
         st.plotly_chart(fig_j, use_container_width=True); add_html_download_button(fig_j, "JLPT_Dist")
 
-        # Routledge Frequency Distribution
-        r_cols = [f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"]
-        df_r = df_gen.melt(id_vars=["File"], value_vars=r_cols, var_name="Routledge Rank", value_name="%")
-        fig_r = px.bar(df_r, x="File", y="%", color="Routledge Rank", title="Routledge Frequency Rank Distribution (Top 5000)", barmode="stack", template="plotly_white")
+        df_r = df_gen.melt(id_vars=["File"], value_vars=[f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"], var_name="Rank", value_name="%")
+        fig_r = px.bar(df_r, x="File", y="%", color="Rank", title="Routledge Frequency Distribution", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_r, use_container_width=True); add_html_download_button(fig_r, "Routledge_Dist")
 
     with tab_pos:
