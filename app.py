@@ -32,34 +32,31 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Total valid tokens (excl. punctuation). Samples >100 are most reliable.",
-    "TTR": "Unique Words / Total Words. Variety measure.",
-    "MTLD": "Lexical Diversity (Length-independent). Higher means more diverse vocabulary.",
-    "Readability": "JReadability (Lee & Hasebe). Lower score = Higher difficulty.",
-    "J-Level": "Pedagogical level based on JReadability score.",
-    "JGRI": "Grammatical Complexity Index. Higher = more clausal nesting/complexity.",
-    "JGRI Interp": "Interpretation: Simple, Standard, or Complex grammar.",
-    "WPS": "Words Per Sentence. Key syntactic complexity indicator.",
-    "K(raw)": "Count of Kanji script tokens.",
-    "K%": "Percentage of Kanji characters. Formal/Academic texts show higher %.",
-    "H(raw)": "Count of Hiragana script tokens.",
-    "H%": "Percentage of Hiragana. Introductory/Oral texts show higher %.",
-    "T(raw)": "Count of Katakana script tokens.",
-    "T%": "Percentage of Katakana. Modern/Technical loanword indicator.",
-    "O(raw)": "Count of Other script tokens (Latin/Numbers).",
-    "O%": "Percentage of Other characters.",
-    "V(raw)": "Count of Verbs.", "V%": "Verb density.",
-    "P(raw)": "Count of Particles.", "P%": "Particle density.",
+    "Tokens": "Total valid linguistic tokens (excluding punctuation).",
+    "TTR": "Type-Token Ratio (Unique Words / Total). Measure of lexical variety.",
+    "MTLD": "Measure of Textual Lexical Diversity. Length-independent diversity score.",
+    "Readability": "JReadability Score (Lee & Hasebe). 0.5-1.5: U-Adv; 2.5-3.5: U-Int; 4.5-5.5: U-Elem.",
+    "J-Level": "Pedagogical level assigned based on the JReadability score.",
+    "JGRI": "Japanese Grammatical Relationship Index. Standardized complexity score.",
+    "JGRI Interp": "Interpretation: < -0.5: Simple; -0.5 to 0.5: Standard; > 0.5: Complex.",
+    "WPS": "Mean words per sentence. Syntactic complexity indicator.",
+    "K(raw)": "Raw count of Kanji characters.", "K%": "Percentage of Kanji characters.",
+    "H(raw)": "Raw count of Hiragana characters.", "H%": "Percentage of Hiragana characters.",
+    "T(raw)": "Raw count of Katakana characters.", "T%": "Percentage of Katakana characters.",
+    "O(raw)": "Raw count of Other characters (numbers, roman, etc.).", "O%": "Percentage of Other characters.",
+    "V(raw)": "Raw count of Verbs.", "V%": "Percentage of Verbs.",
+    "P(raw)": "Raw count of Particles.", "P%": "Percentage of Particles."
 }
-# Add Dynamic Tooltips for JLPT and Routledge
+
+# Add JLPT and Routledge Tooltips
 for l in ["N1","N2","N3","N4","N5","NA"]:
-    TOOLTIPS[f"{l}(raw)"] = f"Number of words matching JLPT {l} wordlist."
-    TOOLTIPS[f"{l}%"] = f"Percentage of text composed of JLPT {l} vocabulary."
+    TOOLTIPS[f"{l}(raw)"] = f"Count of tokens matching JLPT {l} level."
+    TOOLTIPS[f"{l}%"] = f"Percentage of text in JLPT {l} level."
 for i in range(1, 6):
-    TOOLTIPS[f"TOP-{i}000(raw)"] = f"Count of words in the Routledge Top {i}000 frequency list."
-    TOOLTIPS[f"TOP-{i}000%"] = f"Percentage of text in the Routledge Top {i}000 range."
-TOOLTIPS["TOP-NA(raw)"] = "Words not found in the Routledge Top 5000 list."
-TOOLTIPS["TOP-NA%"] = "Percentage of words outside the Top 5000 range."
+    TOOLTIPS[f"TOP-{i}000(raw)"] = f"Count of words in Routledge Top {i}000 list."
+    TOOLTIPS[f"TOP-{i}000%"] = f"Percentage of text in Routledge Top {i}000 list."
+TOOLTIPS["TOP-NA(raw)"] = "Words not found in Routledge Top 5000 list."
+TOOLTIPS["TOP-NA%"] = "Percentage of words outside Routledge Top 5000."
 
 # ===============================================
 # --- 2. UTILITY & LINGUISTIC FUNCTIONS ---
@@ -83,7 +80,6 @@ def load_jlpt_wordlists():
 
 @st.cache_data
 def load_routledge_wordlist():
-    # Try local first, then GitHub
     df = None
     if os.path.exists(ROUTLEDGE_FILENAME):
         df = pd.read_csv(ROUTLEDGE_FILENAME)
@@ -96,10 +92,12 @@ def load_routledge_wordlist():
     if df is not None:
         for _, row in df.iterrows():
             level = str(row['Level']).strip()
+            # Check Hiragana, Katakana, and Kanji columns for matching
             for col in ['hiragana', 'katakana', 'kanji']:
-                val = str(row[col]).strip()
-                if val and val != 'nan' and val != '':
-                    rout_map[val] = level
+                if col in df.columns:
+                    val = str(row[col]).strip()
+                    if val and val.lower() != 'nan' and val != '':
+                        rout_map[val] = level
     return rout_map
 
 def katakana_to_hiragana(text):
@@ -125,10 +123,22 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     all_nodes = []
     for n in nodes:
         if n.surface:
-            lemma = n.feature.orth if hasattr(n.feature, 'orth') and n.feature.orth else n.surface
-            # Unidic usually provides reading in katakana
-            reading = getattr(n.feature, 'kana', '') or ''
-            all_nodes.append({"surface": n.surface, "lemma": lemma, "reading": reading, "pos": n.feature.pos1, "file": filename})
+            f = n.feature
+            # Unidic features: index 7 is Lemma Orthography, index 10 is Reading (Katakana)
+            lemma_orth = n.surface
+            reading_kata = ""
+            if len(f) >= 8:
+                lemma_orth = f[7] if f[7] and f[7] != '*' else n.surface
+            if len(f) >= 11:
+                reading_kata = f[10] if f[10] and f[10] != '*' else ""
+            
+            all_nodes.append({
+                "surface": n.surface,
+                "lemma": lemma_orth,
+                "reading": reading_kata,
+                "pos": f[0],
+                "file": filename
+            })
     
     valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
@@ -159,11 +169,11 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 break
         if not found_jlpt: jlpt_counts["NA"] += 1
 
-        # Routledge Triple-Check (Surface, Lemma, Reading-Hira/Kata)
+        # Routledge Robust Match
         found_rout = False
-        r_kata = n['reading']
-        r_hira = katakana_to_hiragana(r_kata)
-        for check in [n['surface'], n['lemma'], r_kata, r_hira]:
+        reading_hira = katakana_to_hiragana(n['reading'])
+        # Check Kanji form, Hiragana form, and Original form
+        for check in [n['lemma'], n['surface'], reading_hira, n['reading']]:
             if check and check in routledge_list:
                 lvl = routledge_list[check]
                 if lvl in rout_counts:
@@ -258,12 +268,13 @@ if corpus:
             row[f"{lvl}(raw)"] = data["jlpt"][lvl]
             row[f"{lvl}%"] = round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
         for i in range(1, 6):
-            row[f"TOP-{i}000(raw)"] = data["rout"][f"TOP-{i}000"]
-            row[f"TOP-{i}000%"] = round((data["rout"][f"TOP-{i}000"]/t_v*100), 1) if t_v > 0 else 0
+            lvl = f"TOP-{i}000"
+            row[f"{lvl}(raw)"] = data["rout"][lvl]
+            row[f"{lvl}%"] = round((data["rout"][lvl]/t_v*100), 1) if t_v > 0 else 0
         row["TOP-NA(raw)"] = data["rout"]["TOP-NA"]
         row["TOP-NA%"] = round((data["rout"]["TOP-NA"]/t_v*100), 1) if t_v > 0 else 0
-
         res_gen.append(row)
+        
         p_row = {"File": item['name']}
         for label, count in data["pos_raw"].items():
             p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
@@ -334,7 +345,7 @@ if corpus:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True)
 
-        # FIXED Visualization: Script Distribution
+        # Corrected Visualization: Script Distribution
         df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
         fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution (Kanji, Hira, Kata, Other)", barmode="stack", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True)
@@ -343,7 +354,7 @@ if corpus:
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
         st.plotly_chart(fig_j, use_container_width=True)
 
-        # NEW Visualization: Routledge Distribution
+        # Routledge Frequency Distribution
         r_cols = [f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"]
         df_r = df_gen.melt(id_vars=["File"], value_vars=r_cols, var_name="Routledge Rank", value_name="%")
         fig_r = px.bar(df_r, x="File", y="%", color="Routledge Rank", title="Routledge Frequency Rank Distribution (Top 5000)", barmode="stack", template="plotly_white")
