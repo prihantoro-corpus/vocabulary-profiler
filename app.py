@@ -33,30 +33,30 @@ POS_FULL_MAP = {
 
 TOOLTIPS = {
     "Tokens": "Total valid linguistic tokens (excluding punctuation).",
-    "TTR": "Type-Token Ratio (Unique Words / Total). Measure of lexical variety.",
-    "MTLD": "Measure of Textual Lexical Diversity. Length-independent diversity score.",
-    "Readability": "JReadability Score (Lee & Hasebe). Lower score means higher difficulty.",
-    "J-Level": "Pedagogical level assigned based on the JReadability score.",
-    "JGRI": "Japanese Grammatical Relationship Index. Standardized complexity score.",
-    "JGRI Interp": "Interpretation: < -0.5: Simple; -0.5 to 0.5: Standard; > 0.5: Complex.",
-    "WPS": "Mean words per sentence. Syntactic complexity indicator.",
-    "K(raw)": "Raw count of Kanji script tokens.", "K%": "Percentage of Kanji script.",
-    "H(raw)": "Raw count of Hiragana script tokens.", "H%": "Percentage of Hiragana script.",
-    "T(raw)": "Raw count of Katakana script tokens.", "T%": "Percentage of Katakana script.",
-    "O(raw)": "Raw count of Other script tokens (Latin/Numbers).", "O%": "Percentage of Other characters.",
-    "V(raw)": "Raw count of Verbs.", "V%": "Percentage of Verbs.",
-    "P(raw)": "Raw count of Particles.", "P%": "Percentage of Particles."
+    "TTR": "Unique Words / Total Words. Variety measure.",
+    "MTLD": "Lexical Diversity score (length-independent).",
+    "Readability": "JReadability (Lee & Hasebe). Lower = harder.",
+    "J-Level": "Pedagogical level assigned based on JReadability score.",
+    "JGRI": "Relative Grammatical Complexity (Z-score average).",
+    "JGRI Interp": "Interpretation: Simple (< -0.5), Standard, or Complex (> 0.5).",
+    "WPS": "Mean words per sentence.",
+    "K(raw)": "Count of Kanji script tokens.", "K%": "Percentage of Kanji characters.",
+    "H(raw)": "Count of Hiragana script tokens.", "H%": "Percentage of Hiragana characters.",
+    "T(raw)": "Count of Katakana script tokens.", "T%": "Percentage of Katakana characters.",
+    "O(raw)": "Count of Other script tokens.", "O%": "Percentage of Other characters.",
+    "V(raw)": "Count of Verbs.", "V%": "Verb density percentage.",
+    "P(raw)": "Count of Particles.", "P%": "Particle density percentage."
 }
 
 # Add JLPT and Routledge Tooltips
 for l in ["N1","N2","N3","N4","N5","NA"]:
-    TOOLTIPS[f"{l}(raw)"] = f"Count of tokens matching JLPT {l} level."
-    TOOLTIPS[f"{l}%"] = f"Percentage of text in JLPT {l} level."
+    TOOLTIPS[f"{l}(raw)"] = f"Count of words matching JLPT {l}."
+    TOOLTIPS[f"{l}%"] = f"Percentage of text in JLPT {l}."
 for i in range(1, 6):
-    TOOLTIPS[f"TOP-{i}000(raw)"] = f"Count of words in Routledge Top {i}000 list."
-    TOOLTIPS[f"TOP-{i}000%"] = f"Percentage of text in Routledge Top {i}000 list."
-TOOLTIPS["TOP-NA(raw)"] = "Words not found in Routledge Top 5000 list."
-TOOLTIPS["TOP-NA%"] = "Percentage of words outside Routledge Top 5000."
+    TOOLTIPS[f"TOP-{i}000(raw)"] = f"Count of words in Routledge Top {i}000."
+    TOOLTIPS[f"TOP-{i}000%"] = f"Percentage of text in Routledge Top {i}000."
+TOOLTIPS["TOP-NA(raw)"] = "Words not found in Routledge Top 5000."
+TOOLTIPS["TOP-NA%"] = "Percentage of words outside Top 5000."
 
 # ===============================================
 # --- 2. UTILITY & LINGUISTIC FUNCTIONS ---
@@ -81,15 +81,8 @@ def load_jlpt_wordlists():
 @st.cache_data
 def load_routledge_wordlist():
     df = None
-    # Try multiple encodings for robustness
-    encodings = ['utf-8', 'utf-8-sig', 'cp932', 'shift_jis']
-    
     if os.path.exists(ROUTLEDGE_FILENAME):
-        for enc in encodings:
-            try:
-                df = pd.read_csv(ROUTLEDGE_FILENAME, encoding=enc)
-                break
-            except: continue
+        df = pd.read_csv(ROUTLEDGE_FILENAME)
     else:
         try:
             df = pd.read_csv(ROUTLEDGE_URL)
@@ -120,6 +113,11 @@ def get_jread_level(score):
     elif 5.5 <= score < 6.5: return "Lower-elementary"
     else: return "Other"
 
+def get_jgri_interp(score):
+    if score > 0.5: return "Complex"
+    elif score < -0.5: return "Simple"
+    else: return "Standard"
+
 def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     nodes = tagger(text)
     all_nodes = []
@@ -147,7 +145,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     num_sentences = len(sentences) if sentences else 1
     total_tokens_valid = len(valid_nodes)
     
-    # 1. Script Counts
+    # Script Counts
     k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0
     for n in valid_nodes:
         if re.search(r'[\u4e00-\u9faf]', n['surface']): k_raw += 1
@@ -155,11 +153,11 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
         elif re.search(r'[\u30a0-\u30ff]', n['surface']): t_raw += 1
         else: o_raw += 1
 
-    # 2. POS Counts
+    # POS Counts
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
     v_raw, p_raw = pos_counts_raw["Verb (動詞)"], pos_counts_raw["Particle (助詞)"]
     
-    # 3. Profiling
+    # Profiling
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
     rout_counts = {f"TOP-{i}000": 0 for i in range(1, 6)}
     rout_counts["TOP-NA"] = 0
@@ -174,11 +172,10 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 break
         if not found_jlpt: jlpt_counts["NA"] += 1
 
-        # Robust Routledge Match
+        # Match Routledge
         found_rout = False
-        reading_hira = katakana_to_hiragana(n['reading'])
-        # Checks Surface (for particles), Lemma (for verbs), and Hiragana Reading (for kanji)
-        for check in [n['surface'], n['lemma'], reading_hira, n['reading']]:
+        r_hira = katakana_to_hiragana(n['reading'])
+        for check in [n['surface'], n['lemma'], r_hira, n['reading']]:
             if check and check in routledge_list:
                 lvl = routledge_list[check]
                 if lvl in rout_counts:
@@ -294,12 +291,11 @@ if corpus:
     
     with tab_mat:
         st.header("Analysis Matrix")
-        cols_to_show = [
-            "File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
-            "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
-            "V(raw)", "V%", "P(raw)", "P%"
-        ] + [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["(raw)", "%"]] \
-          + [f"TOP-{i}000{s}" for i in range(1, 6) for s in ["(raw)", "%"]] + ["TOP-NA(raw)", "TOP-NA%"]
+        cols_to_show = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
+                        "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
+                        "V(raw)", "V%", "P(raw)", "P%"] + \
+                       [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["(raw)", "%"]] + \
+                       [f"TOP-{i}000{s}" for i in range(1, 6) for s in ["(raw)", "%"]] + ["TOP-NA(raw)", "TOP-NA%"]
         
         st.dataframe(df_gen[cols_to_show], column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
 
