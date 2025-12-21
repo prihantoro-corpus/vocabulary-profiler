@@ -17,10 +17,12 @@ import os
 # --- 1. CONFIGURATION & MAPPINGS ---
 # ===============================================
 
+# URL configuration
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
-ROUTLEDGE_FILENAME = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
+# The Raw GitHub URL for the Excel file as requested
 ROUTLEDGE_URL = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/Routledge%205000%20Vocab%20ONLY.xlsx"
+LOCAL_ROUTLEDGE_CSV = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
 
 POS_FULL_MAP = {
     "Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞",
@@ -32,9 +34,9 @@ POS_FULL_MAP = {
 }
 
 TOOLTIPS = {
-    "Tokens": "Total valid tokens (excluding punctuation).",
-    "TTR": "Unique Words / Total Words. Variety measure.",
-    "MTLD": "Lexical Diversity score (length-independent).",
+    "Tokens": "Total valid linguistic tokens (excluding punctuation).",
+    "TTR": "Unique Words / Total Words (Lexical Variety).",
+    "MTLD": "Measure of Textual Lexical Diversity (length-independent).",
     "Readability": "JReadability (Lee & Hasebe). Lower = harder.",
     "J-Level": "Pedagogical level assigned based on JReadability score.",
     "JGRI": "Relative Grammatical Complexity (Z-score average).",
@@ -44,6 +46,8 @@ TOOLTIPS = {
     "H(raw)": "Count of Hiragana script tokens.", "H%": "Percentage of Hiragana characters.",
     "T(raw)": "Count of Katakana script tokens.", "T%": "Percentage of Katakana characters.",
     "O(raw)": "Count of Other script tokens.", "O%": "Percentage of Other characters.",
+    "V(raw)": "Raw count of Verbs.", "V%": "Verb density percentage.",
+    "P(raw)": "Raw count of Particles.", "P%": "Particle density percentage."
 }
 
 # Add JLPT and Routledge Tooltips
@@ -79,35 +83,61 @@ def load_jlpt_wordlists():
 @st.cache_data
 def load_routledge_wordlist():
     df = None
-    # Try different encodings for Excel-exported CSVs
-    for enc in ['utf-8-sig', 'utf-8', 'cp932', 'shift_jis']:
+    # 1. Try Local CSV
+    if os.path.exists(LOCAL_ROUTLEDGE_CSV):
         try:
-            if os.path.exists(ROUTLEDGE_FILENAME):
-                df = pd.read_csv(ROUTLEDGE_FILENAME, encoding=enc)
-                break
-        except: continue
+            df = pd.read_csv(LOCAL_ROUTLEDGE_CSV, encoding='utf-8-sig')
+        except: pass
     
+    # 2. Try Raw GitHub Excel
     if df is None:
         try:
-            df = pd.read_csv(ROUTLEDGE_URL)
+            resp = requests.get(ROUTLEDGE_URL)
+            if resp.status_code == 200:
+                df = pd.read_excel(io.BytesIO(resp.content))
+        except: pass
+        
+    # 3. Try GitHub CSV Fallback
+    if df is None:
+        try:
+            csv_url = GITHUB_BASE + "Routledge%205000%20Vocab%20ONLY.xlsx%20-%20Sheet1.csv"
+            df = pd.read_csv(csv_url)
         except: return {}
-    
+
     rout_map = {}
     if df is not None:
-        # Sort by Rank ascending to ensure the most frequent rank is processed first
-        if 'Rank' in df.columns:
-            df = df.sort_values(by='Rank', ascending=True)
-            
+        # Normalize columns to lowercase
+        df.columns = [str(c).lower().strip() for c in df.columns]
+        # Sort by Rank (ascending) to ensure the highest frequency rank is processed first
+        if 'rank' in df.columns:
+            df['rank'] = pd.to_numeric(df['rank'], errors='coerce')
+            df = df.sort_values(by='rank', ascending=True)
+        
         for _, row in df.iterrows():
-            level = str(row['Level']).strip().upper()
-            # Map Hiragana, Katakana, and Kanji columns for matching
+            level = str(row.get('level', '')).strip().upper()
+            if not level: continue
+            
+            # Extract forms from columns: hiragana (3), katakana (4), kanji (5)
+            # We try column names first, then positional fallback
+            forms = []
             for col in ['hiragana', 'katakana', 'kanji']:
-                if col in df.columns:
-                    val = str(row[col]).strip()
-                    if val and val.lower() != 'nan' and val != '':
-                        # Only add if it doesn't exist to PRESERVE highest frequency level
-                        if val not in rout_map:
-                            rout_map[val] = level
+                val = str(row.get(col, '')).strip()
+                if val and val.lower() != 'nan' and val != '':
+                    forms.append(val)
+            
+            # Positional fallback (Col 2, 3, 4 are Hiragana, Katakana, Kanji)
+            if not forms:
+                try:
+                    for i in [2, 3, 4]:
+                        val = str(row.iloc[i]).strip()
+                        if val and val.lower() != 'nan' and val != '':
+                            forms.append(val)
+                except: pass
+            
+            for f in forms:
+                # IMPORTANT: Only add if not present to keep the HIGHEST frequency level
+                if f not in rout_map:
+                    rout_map[f] = level
     return rout_map
 
 def katakana_to_hiragana(text):
@@ -134,7 +164,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     for n in nodes:
         if n.surface:
             f = n.feature
-            # Unidic indices vary; index 7 is often lemma orthography
+            # Unidic indices: 0: POS, 7: Lemma Orthography, 10: Reading (Katakana)
             lemma_orth = n.surface
             reading_kata = ""
             if len(f) >= 8:
@@ -155,7 +185,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     num_sentences = len(sentences) if sentences else 1
     total_tokens_valid = len(valid_nodes)
     
-    # Script Counts
+    # 1. Script Counts
     k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0
     for n in valid_nodes:
         if re.search(r'[\u4e00-\u9faf]', n['surface']): k_raw += 1
@@ -163,11 +193,11 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
         elif re.search(r'[\u30a0-\u30ff]', n['surface']): t_raw += 1
         else: o_raw += 1
 
-    # POS Counts
+    # 2. POS Counts
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
     v_raw, p_raw = pos_counts_raw["Verb (動詞)"], pos_counts_raw["Particle (助詞)"]
     
-    # Profiling
+    # 3. Profiling
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
     rout_counts = {f"TOP-{i}000": 0 for i in range(1, 6)}
     rout_counts["TOP-NA"] = 0
@@ -182,10 +212,9 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 break
         if not found_jlpt: jlpt_counts["NA"] += 1
 
-        # Match Routledge
+        # Match Routledge (Triple Check: Surface, Lemma, Reading-Hira)
         found_rout = False
         r_hira = katakana_to_hiragana(n['reading'])
-        # Checks Surface (for particles), Lemma (for verbs), and readings
         for check in [n['surface'], n['lemma'], r_hira, n['reading']]:
             if check and check in routledge_list:
                 lvl = routledge_list[check]
@@ -246,7 +275,7 @@ tagger, jlpt_wordlists, rout_list = Tagger(), load_jlpt_wordlists(), load_routle
 if not rout_list:
     st.sidebar.error("⚠️ Routledge 5000 list not loaded.")
 else:
-    st.sidebar.success(f"✅ Routledge list loaded: {len(rout_list)} items.")
+    st.sidebar.success(f"✅ Routledge list loaded: {len(rout_list)} forms.")
 
 st.title("📖 Japanese Text Vocabulary Profiler")
 
