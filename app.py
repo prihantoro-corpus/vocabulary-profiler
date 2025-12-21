@@ -20,7 +20,7 @@ import os
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
 JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
 ROUTLEDGE_FILENAME = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
-ROUTLEDGE_URL = GITHUB_BASE + "Routledge%205000%20Vocab%20ONLY.xlsx%20-%20Sheet1.csv"
+ROUTLEDGE_URL = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/Routledge%205000%20Vocab%20ONLY.xlsx"
 
 POS_FULL_MAP = {
     "Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞",
