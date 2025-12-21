@@ -19,18 +19,33 @@ import os
 
 # URL configuration
 GITHUB_BASE = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/"
-JLPT_FILES = {"N1": "unknown_source_N1.csv", "N2": "unknown_source_N2.csv", "N3": "unknown_source_N3.csv", "N4": "unknown_source_N4.csv", "N5": "unknown_source_N5.csv"}
-# Using the Raw GitHub link for the Excel file as requested
+JLPT_FILES = {
+    "N1": "unknown_source_N1.csv",
+    "N2": "unknown_source_N2.csv",
+    "N3": "unknown_source_N3.csv",
+    "N4": "unknown_source_N4.csv",
+    "N5": "unknown_source_N5.csv"
+}
+
+# The Raw GitHub URL for the Excel file as requested
 ROUTLEDGE_URL = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/Routledge%205000%20Vocab%20ONLY.xlsx"
 LOCAL_ROUTLEDGE_CSV = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
 
 POS_FULL_MAP = {
-    "Noun (名詞)": "名詞", "Verb (動詞)": "動詞", "Particle (助詞)": "助詞",
-    "Adverb (副詞)": "副詞", "Adjective (形容詞)": "形容詞", "Adjectival Noun (形状詞)": "形状詞",
-    "Auxiliary Verb (助動詞)": "助動詞", "Conjunction (接続詞)": "接続詞",
-    "Pronoun (代名詞)": "代名詞", "Determiner (連体詞)": "連体詞",
-    "Interjection (感動詞)": "感動詞", "Prefix (接頭辞)": "接頭辞",
-    "Suffix (接尾辞)": "接尾辞", "Symbol/Punc (補助記号)": "補助記号"
+    "Noun (名詞)": "名詞",
+    "Verb (動詞)": "動詞",
+    "Particle (助詞)": "助詞",
+    "Adverb (副詞)": "副詞",
+    "Adjective (形容詞)": "形容詞",
+    "Adjectival Noun (形状詞)": "形状詞",
+    "Auxiliary Verb (助動詞)": "助動詞",
+    "Conjunction (接続詞)": "接続詞",
+    "Pronoun (代名詞)": "代名詞",
+    "Determiner (連体詞)": "連体詞",
+    "Interjection (感動詞)": "感動詞",
+    "Prefix (接頭辞)": "接頭辞",
+    "Suffix (接尾辞)": "接尾辞",
+    "Symbol/Punc (補助記号)": "補助記号"
 }
 
 TOOLTIPS = {
@@ -42,12 +57,18 @@ TOOLTIPS = {
     "JGRI": "Japanese Grammatical Relationship Index. Standardized complexity score.",
     "JGRI Interp": "Interpretation: < -0.5: Simple; -0.5 to 0.5: Standard; > 0.5: Complex.",
     "WPS": "Mean words per sentence. Syntactic complexity indicator.",
-    "K(raw)": "Count of Kanji script tokens.", "K%": "Percentage of Kanji characters.",
-    "H(raw)": "Count of Hiragana script tokens.", "H%": "Percentage of Hiragana characters.",
-    "T(raw)": "Count of Katakana script tokens.", "T%": "Percentage of Katakana characters.",
-    "O(raw)": "Count of Other script tokens.", "O%": "Percentage of Other characters.",
-    "V(raw)": "Raw count of Verbs.", "V%": "Verb density percentage.",
-    "P(raw)": "Raw count of Particles.", "P%": "Particle density percentage."
+    "K(raw)": "Count of Kanji script tokens.",
+    "K%": "Percentage of Kanji characters.",
+    "H(raw)": "Count of Hiragana script tokens.",
+    "H%": "Percentage of Hiragana characters.",
+    "T(raw)": "Count of Katakana script tokens.",
+    "T%": "Percentage of Katakana characters.",
+    "O(raw)": "Count of Other script tokens.",
+    "O%": "Percentage of Other characters.",
+    "V(raw)": "Raw count of Verbs.",
+    "V%": "Verb density percentage.",
+    "P(raw)": "Raw count of Particles.",
+    "P%": "Particle density percentage."
 }
 
 # Add JLPT and Routledge Tooltips
@@ -68,7 +89,12 @@ def add_html_download_button(fig, filename):
     buffer = io.StringIO()
     fig.write_html(buffer, include_plotlyjs='cdn')
     html_bytes = buffer.getvalue().encode()
-    st.download_button(label=f"📥 Download Chart (HTML)", data=html_bytes, file_name=f"{filename}.html", mime="text/html")
+    st.download_button(
+        label=f"📥 Download Chart (HTML)",
+        data=html_bytes,
+        file_name=f"{filename}.html",
+        mime="text/html"
+    )
 
 @st.cache_data
 def load_jlpt_wordlists():
@@ -77,7 +103,8 @@ def load_jlpt_wordlists():
         try:
             df = pd.read_csv(GITHUB_BASE + f)
             wordlists[lvl] = set(df.iloc[:, 0].astype(str).tolist())
-        except: wordlists[lvl] = set()
+        except:
+            wordlists[lvl] = set()
     return wordlists
 
 @st.cache_data
@@ -87,20 +114,23 @@ def load_routledge_wordlist():
     if os.path.exists(LOCAL_ROUTLEDGE_CSV):
         try:
             df = pd.read_csv(LOCAL_ROUTLEDGE_CSV, encoding='utf-8-sig')
-        except: pass
+        except:
+            pass
     # 2. Try Raw GitHub Excel
     if df is None:
         try:
             resp = requests.get(ROUTLEDGE_URL)
             if resp.status_code == 200:
                 df = pd.read_excel(io.BytesIO(resp.content))
-        except: pass
+        except:
+            pass
     # 3. Try GitHub CSV Fallback
     if df is None:
         try:
             csv_url = GITHUB_BASE + "Routledge%205000%20Vocab%20ONLY.xlsx%20-%20Sheet1.csv"
             df = pd.read_csv(csv_url)
-        except: return {}
+        except:
+            return {}
 
     rout_map = {}
     if df is not None:
@@ -113,7 +143,8 @@ def load_routledge_wordlist():
         
         for _, row in df.iterrows():
             level = str(row.get('level', '')).strip().upper()
-            if not level: continue
+            if not level:
+                continue
             
             # Map forms from all script columns
             forms = []
@@ -129,7 +160,8 @@ def load_routledge_wordlist():
                         val = str(row.iloc[i]).strip()
                         if val and val.lower() != 'nan' and val != '':
                             forms.append(val)
-                except: pass
+                except:
+                    pass
             
             for f in forms:
                 # Priority mapping: first come (highest frequency) stays
@@ -138,7 +170,8 @@ def load_routledge_wordlist():
     return rout_map
 
 def katakana_to_hiragana(text):
-    if not text: return ""
+    if not text:
+        return ""
     return "".join([chr(ord(c) - 0x60) if "\u30a1" <= c <= "\u30f6" else c for c in text])
 
 def get_jread_level(score):
@@ -151,9 +184,12 @@ def get_jread_level(score):
     else: return "Other"
 
 def get_jgri_interp(score):
-    if score > 0.5: return "Complex"
-    elif score < -0.5: return "Simple"
-    else: return "Standard"
+    if score > 0.5:
+        return "Complex"
+    elif score < -0.5:
+        return "Simple"
+    else:
+        return "Standard"
 
 def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     nodes = tagger(text)
@@ -185,14 +221,19 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     # 1. Script Counts
     k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0
     for n in valid_nodes:
-        if re.search(r'[\u4e00-\u9faf]', n['surface']): k_raw += 1
-        elif re.search(r'[\u3040-\u309f]', n['surface']): h_raw += 1
-        elif re.search(r'[\u30a0-\u30ff]', n['surface']): t_raw += 1
-        else: o_raw += 1
+        if re.search(r'[\u4e00-\u9faf]', n['surface']):
+            k_raw += 1
+        elif re.search(r'[\u3040-\u309f]', n['surface']):
+            h_raw += 1
+        elif re.search(r'[\u30a0-\u30ff]', n['surface']):
+            t_raw += 1
+        else:
+            o_raw += 1
 
     # 2. POS Counts
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
-    v_raw, p_raw = pos_counts_raw["Verb (動詞)"], pos_counts_raw["Particle (助詞)"]
+    v_raw = pos_counts_raw.get("Verb (動詞)", 0)
+    p_raw = pos_counts_raw.get("Particle (助詞)", 0)
     
     # 3. Profiling
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
@@ -207,7 +248,8 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 jlpt_counts[lvl] += 1
                 found_jlpt = True
                 break
-        if not found_jlpt: jlpt_counts["NA"] += 1
+        if not found_jlpt:
+            jlpt_counts["NA"] += 1
 
         # Match Routledge (Triple Check: Surface, Lemma, Reading-Hira)
         found_rout = False
@@ -219,11 +261,17 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                     rout_counts[lvl] += 1
                     found_rout = True
                     break
-        if not found_rout: rout_counts["TOP-NA"] += 1
+        if not found_rout:
+            rout_counts["TOP-NA"] += 1
 
     wps = total_tokens_valid / num_sentences
-    pk, ph, pt, po = (k_raw/total_tokens_valid*100), (h_raw/total_tokens_valid*100), (t_raw/total_tokens_valid*100), (o_raw/total_tokens_valid*100)
-    pv, pp = (v_raw/total_tokens_valid*100), (p_raw/total_tokens_valid*100)
+    pk = (k_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    ph = (h_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    pt = (t_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    po = (o_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    
+    pv = (v_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    pp = (p_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     
     jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
@@ -231,13 +279,32 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     return {
         "all_tokens": all_nodes,
         "stats": {
-            "T_Valid": total_tokens_valid, "T_All": len(all_nodes), "WPS": round(wps, 2), "Read": round(jread, 3), 
-            "K_raw": k_raw, "K%": round(pk, 1), "H_raw": h_raw, "H%": round(ph, 1), 
-            "T_raw": t_raw, "T%": round(pt, 1), "O_raw": o_raw, "O%": round(po, 1),
-            "V_raw": v_raw, "V%": round(pv, 1), "P_raw": p_raw, "P%": round(pp, 1)
+            "T_Valid": total_tokens_valid,
+            "T_All": len(all_nodes),
+            "WPS": round(wps, 2),
+            "Read": round(jread, 3),
+            "K_raw": k_raw,
+            "K%": round(pk, 1),
+            "H_raw": h_raw,
+            "H%": round(ph, 1),
+            "T_raw": t_raw,
+            "T%": round(pt, 1),
+            "O_raw": o_raw,
+            "O%": round(po, 1),
+            "V_raw": v_raw,
+            "V%": round(pv, 1),
+            "P_raw": p_raw,
+            "P%": round(pp, 1)
         },
-        "jlpt": jlpt_counts, "rout": rout_counts, "pos_raw": pos_counts_raw,
-        "jgri_base": {"MMS": wps, "LD": content_words/total_tokens_valid if total_tokens_valid > 0 else 0, "VPS": v_raw/num_sentences, "MPN": pos_counts_raw["Adverb (副詞)"]/pos_counts_raw["Noun (名詞)"] if pos_counts_raw["Noun (名詞)"] > 0 else 0}
+        "jlpt": jlpt_counts,
+        "rout": rout_counts,
+        "pos_raw": pos_counts_raw,
+        "jgri_base": {
+            "MMS": wps,
+            "LD": content_words / total_tokens_valid if total_tokens_valid > 0 else 0,
+            "VPS": v_raw / num_sentences,
+            "MPN": pos_counts_raw.get("Adverb (副詞)", 0) / pos_counts_raw.get("Noun (名詞)", 1)
+        }
     }
 
 # ===============================================
@@ -255,7 +322,8 @@ corpus = []
 if source == "Upload Files":
     up = st.sidebar.file_uploader("Upload .txt or .xlsx files", accept_multiple_files=True)
     if up:
-        for f in up: corpus.append({"name": f.name, "text": f.read().decode('utf-8', errors='ignore')})
+        for f in up:
+            corpus.append({"name": f.name, "text": f.read().decode('utf-8', errors='ignore')})
 else:
     url_key = "all" if "ALL" in source else "30%20files%20only"
     url = f"https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/DICO-JALF%20{url_key}.xlsx"
@@ -266,7 +334,9 @@ if st.sidebar.text_input("Access Password", type="password") != "112233":
     st.info("Please enter the password to unlock analysis.")
     st.stop()
 
-tagger, jlpt_wordlists, rout_list = Tagger(), load_jlpt_wordlists(), load_routledge_wordlist()
+tagger = Tagger()
+jlpt_wordlists = load_jlpt_wordlists()
+rout_list = load_routledge_wordlist()
 
 # Diagnostics in sidebar
 if not rout_list:
@@ -294,30 +364,49 @@ if corpus:
     for item in corpus:
         data = analyze_text(item['text'], item['name'], tagger, jlpt_wordlists, rout_list)
         global_toks_all.extend(data["all_tokens"])
-        t_v, t_a = data["stats"]["T_Valid"], data["stats"]["T_All"]
-        lr = LexicalRichness(" ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])) if t_v > 10 else None
+        t_v = data["stats"]["T_Valid"]
+        t_a = data["stats"]["T_All"]
+        
+        # Calculate MTLD
+        text_for_lex = " ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])
+        lr = LexicalRichness(text_for_lex) if len(text_for_lex.split()) > 10 else None
         
         row = {
-            "File": item['name'], "Tokens": t_v, "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
-            "MTLD": round(lr.mtld(), 2) if lr else 0, "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]), 
-            "JGRI": 0, "JGRI Interp": "", # Placeholders
-            "WPS": data["stats"]["WPS"], 
-            "K(raw)": data["stats"]["K_raw"], "K%": data["stats"]["K%"], 
-            "H(raw)": data["stats"]["H_raw"], "H%": data["stats"]["H%"],
-            "T(raw)": data["stats"]["T_raw"], "T%": data["stats"]["T%"],
-            "O(raw)": data["stats"]["O_raw"], "O%": data["stats"]["O%"],
-            "V(raw)": data["stats"]["V_raw"], "V%": data["stats"]["V%"],
-            "P(raw)": data["stats"]["P_raw"], "P%": data["stats"]["P%"],
+            "File": item['name'],
+            "Tokens": t_v,
+            "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
+            "MTLD": round(lr.mtld(), 2) if lr else 0,
+            "Readability": data["stats"]["Read"],
+            "J-Level": get_jread_level(data["stats"]["Read"]),
+            "WPS": data["stats"]["WPS"],
+            "K(raw)": data["stats"]["K_raw"],
+            "K%": data["stats"]["K%"],
+            "H(raw)": data["stats"]["H_raw"],
+            "H%": data["stats"]["H%"],
+            "T(raw)": data["stats"]["T_raw"],
+            "T%": data["stats"]["T%"],
+            "O(raw)": data["stats"]["O_raw"],
+            "O%": data["stats"]["O%"],
+            "V(raw)": data["stats"]["V_raw"],
+            "V%": data["stats"]["V%"],
+            "P(raw)": data["stats"]["P_raw"],
+            "P%": data["stats"]["P%"],
             **data["jgri_base"]
         }
+        
+        # JLPT
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
             row[f"{lvl}(raw)"] = data["jlpt"][lvl]
             row[f"{lvl}%"] = round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
+            
+        # Routledge
         for i in range(1, 6):
             l = f"TOP-{i}000"
             row[f"{l}(raw)"] = data["rout"][l]
             row[f"{l}%"] = round((data["rout"][l]/t_v*100), 1) if t_v > 0 else 0
-        row["TOP-NA(raw)"] = data["rout"]["TOP-NA"]; row["TOP-NA%"] = round((data["rout"]["TOP-NA"]/t_v*100), 1) if t_v > 0 else 0
+        row["TOP-NA(raw)"] = data["rout"]["TOP-NA"]
+        row["TOP-NA%"] = round((data["rout"]["TOP-NA"]/t_v*100), 1) if t_v > 0 else 0
+        
         res_gen.append(row)
         
         p_row = {"File": item['name']}
@@ -326,49 +415,87 @@ if corpus:
         res_pos.append(p_row)
 
     df_gen = pd.DataFrame(res_gen)
-    for c in ["MMS", "LD", "VPS", "MPN"]:
-        df_gen[f"z_{c}"] = zscore(df_gen[c]) if df_gen[c].std() != 0 else 0
-    df_gen["JGRI"] = df_gen[[f"z_{c}" for c in ["MMS", "LD", "VPS", "MPN"]]].mean(axis=1).round(3)
+    
+    # JGRI Standardization
+    jgri_cols = ["MMS", "LD", "VPS", "MPN"]
+    for c in jgri_cols:
+        if df_gen[c].std() != 0:
+            df_gen[f"z_{c}"] = zscore(df_gen[c])
+        else:
+            df_gen[f"z_{c}"] = 0
+            
+    df_gen["JGRI"] = df_gen[[f"z_{c}" for c in jgri_cols]].mean(axis=1).round(3)
     df_gen["JGRI Interp"] = df_gen["JGRI"].apply(get_jgri_interp)
 
     tab_mat, tab_pos = st.tabs(["📊 General Analysis", "📝 Full POS Distribution"])
     
     with tab_mat:
         st.header("Analysis Matrix")
+        
+        # Filter columns to show in order
         cols_to_show = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
                         "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
                         "V(raw)", "V%", "P(raw)", "P%"] + \
                        [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["(raw)", "%"]] + \
                        [f"TOP-{i}000{s}" for i in range(1, 6) for s in ["(raw)", "%"]] + ["TOP-NA(raw)", "TOP-NA%"]
         
-        st.dataframe(df_gen[cols_to_show], column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
+        st.dataframe(
+            df_gen[cols_to_show], 
+            column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, 
+            use_container_width=True
+        )
 
         st.divider()
         st.header("🔍 Pattern Search & Concordance (KWIC)")
+        
         filtered_toks = [t for t in global_toks_all if t['pos'] != "補助記号"]
         t_filtered = len(filtered_toks)
         matches_data, concordance_rows = [], []
+        
         for j in range(t_filtered - n_size + 1):
             window, match = filtered_toks[j : j + n_size], True
             for idx in range(n_size):
-                w_p_in, t_p_in = p_words[idx].strip(), p_tags[idx]
+                w_p_in = p_words[idx].strip()
+                t_p_in = p_tags[idx]
                 target_tag = t_p_in.split(" ")[-1].strip("()") if "(" in t_p_in else t_p_in
-                tok_surf, tok_lem, tok_pos = window[idx].get('surface') or "", window[idx].get('lemma') or "", window[idx].get('pos') or ""
-                w_match = (w_p_in == "*") or (re.search("^"+w_p_in.replace("*", ".*")+"$", tok_surf) or re.search("^"+w_p_in.replace("*", ".*")+"$", tok_lem))
+                
+                tok_surf = window[idx].get('surface', "")
+                tok_lem = window[idx].get('lemma', "")
+                tok_pos = window[idx].get('pos', "")
+                
+                # Check Word
+                w_match = (w_p_in == "*") or (
+                    re.search("^"+w_p_in.replace("*", ".*")+"$", tok_surf) or 
+                    re.search("^"+w_p_in.replace("*", ".*")+"$", tok_lem)
+                )
+                # Check POS
                 p_match = (t_p_in == "Any (*)") or (target_tag in tok_pos)
-                if not (w_match and p_match): match = False; break
+                
+                if not (w_match and p_match):
+                    match = False
+                    break
+            
             if match:
-                txt, tags = " ".join([t['surface'] for t in window]), " + ".join([t['pos'] for t in window])
+                txt = " ".join([t['surface'] for t in window])
+                tags = " + ".join([t['pos'] for t in window])
                 matches_data.append((txt, tags))
+                
                 l_c = "".join([t['surface'] for t in filtered_toks[max(0, j-l_ctx_size) : j]])
                 r_c = "".join([t['surface'] for t in filtered_toks[j+n_size : min(t_filtered, j+n_size+r_ctx_size)]])
-                concordance_rows.append({"File": window[0]['file'], "Left Context": l_c, "KWIC": "".join([t['surface'] for t in window]), "Right Context": r_c})
+                concordance_rows.append({
+                    "File": window[0]['file'], 
+                    "Left Context": l_c, 
+                    "KWIC": "".join([t['surface'] for t in window]), 
+                    "Right Context": r_c
+                })
         
         if matches_data:
             c1, c2 = st.columns([1, 2])
             with c1:
                 st.subheader("N-Gram Frequencies")
-                df_counts = pd.DataFrame([{"Sequence": k[0], "POS": k[1], "Raw Freq": v} for k, v in Counter(matches_data).most_common()])
+                df_counts = pd.DataFrame([
+                    {"Sequence": k[0], "POS": k[1], "Raw Freq": v} for k, v in Counter(matches_data).most_common()
+                ])
                 df_counts['PMW'] = df_counts['Raw Freq'].apply(lambda x: round((x / t_filtered) * 1_000_000, 2))
                 st.dataframe(df_counts.head(10), use_container_width=True)
                 st.download_button("📥 Download N-Grams", df_counts.to_csv(index=False).encode('utf-8-sig'), "ngrams.csv")
@@ -377,14 +504,19 @@ if corpus:
                 df_conc = pd.DataFrame(concordance_rows)
                 st.dataframe(df_conc.head(10), use_container_width=True)
                 st.download_button("📥 Download Concordance", df_conc.to_csv(index=False).encode('utf-8-sig'), "concordance.csv")
-        else: st.warning("No matches.")
+        else:
+            st.warning("No matches found for the search criteria.")
 
         st.divider()
         st.header("📈 Visualizations")
+        
         cloud_toks = [t['surface'] for t in filtered_toks if t['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"]]
         if cloud_toks and os.path.exists("NotoSansJP[wght].ttf"):
             wc = WordCloud(font_path="NotoSansJP[wght].ttf", background_color="white", width=800, height=350).generate(" ".join(cloud_toks))
-            fig_cloud, ax = plt.subplots(figsize=(10, 4)); ax.imshow(wc); ax.axis("off"); st.pyplot(fig_cloud)
+            fig_cloud, ax = plt.subplots(figsize=(10, 4))
+            ax.imshow(wc)
+            ax.axis("off")
+            st.pyplot(fig_cloud)
 
         v_list = [
             ("Tokens", "Tokens per File"), 
@@ -395,19 +527,26 @@ if corpus:
         ]
         for col_name, title_name in v_list:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
-            st.plotly_chart(fig, use_container_width=True); add_html_download_button(fig, col_name)
+            st.plotly_chart(fig, use_container_width=True)
+            add_html_download_button(fig, col_name)
 
-        df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%"], var_name="Script", value_name="%")
-        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution (Kanji, Hira)", barmode="stack", template="plotly_white")
-        st.plotly_chart(fig_s, use_container_width=True); add_html_download_button(fig_s, "Script_Dist")
+        # Script Distribution (K, H, T, O)
+        df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
+        fig_s = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
+        st.plotly_chart(fig_s, use_container_width=True)
+        add_html_download_button(fig_s, "Script_Dist")
 
+        # JLPT Distribution
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         fig_j = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
-        st.plotly_chart(fig_j, use_container_width=True); add_html_download_button(fig_j, "JLPT_Dist")
+        st.plotly_chart(fig_j, use_container_width=True)
+        add_html_download_button(fig_j, "JLPT_Dist")
 
+        # Routledge Distribution
         df_r = df_gen.melt(id_vars=["File"], value_vars=[f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"], var_name="Rank", value_name="%")
-        fig_r = px.bar(df_r, x="File", y="%", color="Rank", title="Routledge Frequency Distribution", barmode="stack", template="plotly_white")
-        st.plotly_chart(fig_r, use_container_width=True); add_html_download_button(fig_r, "Routledge_Dist")
+        fig_r = px.bar(df_r, x="File", y="%", color="Rank", title="Routledge Frequency Rank Distribution", barmode="stack", template="plotly_white")
+        st.plotly_chart(fig_r, use_container_width=True)
+        add_html_download_button(fig_r, "Routledge_Dist")
 
     with tab_pos:
         st.header("14-Tier POS Distribution (%)")
