@@ -378,7 +378,7 @@ row = {
             "O%": data["stats"]["O%"],
             **data["jgri_base"]
         }
-        
+
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
             row[f"{lvl}(raw)"] = data["jlpt"][lvl]
             row[f"{lvl}%"] = round((data["jlpt"][lvl]/t_v*100), 1) if t_v > 0 else 0
