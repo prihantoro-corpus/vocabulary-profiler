@@ -218,17 +218,48 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     num_sentences = len(sentences) if sentences else 1
     total_tokens_valid = len(valid_nodes)
     
-    # 1. Script Counts
-    k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0
+    # 1. Word Origin Counts (Lee & Hasebe b & c variables)
+    kango_raw, wago_raw = 0, 0
+    # For visualization/backward compatibility with your script counts:
+    k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0 
+
     for n in valid_nodes:
-        if re.search(r'[\u4e00-\u9faf]', n['surface']):
-            k_raw += 1
-        elif re.search(r'[\u3040-\u309f]', n['surface']):
-            h_raw += 1
-        elif re.search(r'[\u30a0-\u30ff]', n['surface']):
-            t_raw += 1
-        else:
-            o_raw += 1
+        # Determine Script (For your charts)
+        if re.search(r'[\u4e00-\u9faf]', n['surface']): k_raw += 1
+        elif re.search(r'[\u3040-\u309f]', n['surface']): h_raw += 1
+        elif re.search(r'[\u30a0-\u30ff]', n['surface']): t_raw += 1
+        else: o_raw += 1
+
+        # Determine Etymology (For the actual Formula)
+        # UniDic feature list: [0]POS, [1]SubPOS, ..., [12]Goshu (Origin)
+        # Note: Index 12 is standard for UniDic, but we check length to be safe.
+        # Find the node from all_nodes to get the feature list 'f'
+        # Or better: modify the loop where you built valid_nodes to include 'goshu'
+        
+    # --- UPDATE: To make this work, update the node collection loop (Lines 163-178) ---
+    # Change the loop that populates all_nodes to:
+    all_nodes = []
+    for n in nodes:
+        if n.surface:
+            f = n.feature
+            goshu = f[12] if len(f) > 12 else ""
+            all_nodes.append({
+                "surface": n.surface,
+                "lemma": f[7] if len(f) >= 8 and f[7] != '*' else n.surface,
+                "reading": f[10] if len(f) >= 11 and f[10] != '*' else "",
+                "pos": f[0],
+                "goshu": goshu, # Added this
+                "file": filename
+            })
+    
+    # Now use that for the counts:
+    valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
+    for n in valid_nodes:
+        if "漢" in n['goshu']: kango_raw += 1
+        elif "和" in n['goshu']: wago_raw += 1
+
+    pkango = (kango_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    pwago = (wago_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
 
     # 2. POS Counts
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
@@ -273,7 +304,8 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     pv = (v_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pp = (p_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     
-    jread = (11.724 + (wps * -0.056) + (pk * -0.126) + (ph * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
+    # Using pkango and pwago instead of pk (Kanji script) and ph (Hiragana script)
+    jread = (11.724 + (wps * -0.056) + (pkango * -0.126) + (pwago * -0.042) + (pv * -0.145) + (pp * -0.044))
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
