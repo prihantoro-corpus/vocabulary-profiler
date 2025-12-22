@@ -71,7 +71,11 @@ TOOLTIPS = {
     "Kango(raw)": "Count of Sino-Japanese words (漢語).",
     "Kango%": "Percentage of Sino-Japanese words.",
     "Wago(raw)": "Count of Native Japanese words (和語).",
-    "Wago%": "Percentage of Native Japanese words."
+    "Wago%": "Percentage of Native Japanese words.",
+    "Gairai(raw)": "Count of Foreign Loanwords (外来語).",
+    "Gairai%": "Percentage of Foreign Loanwords.",
+    "Konshu(raw)": "Count of words with mixed origins (混種語).",
+    "Konshu%": "Percentage of mixed origin words."
 }
 
 # Add JLPT and Routledge Tooltips
@@ -219,7 +223,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     
     # 2. SCRIPT & ORIGIN COUNTS
     k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0
-    kango_raw, wago_raw = 0, 0
+    kango_raw, wago_raw, gairaigo_raw, konshugo_raw = 0, 0, 0, 0
     
     for n in valid_nodes:
         # Script Analysis
@@ -234,6 +238,10 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
             kango_raw += 1
         elif current_goshu == "和": 
             wago_raw += 1
+        elif current_goshu == "外":  # Foreign/Loanwords
+            gairaigo_raw += 1
+        elif current_goshu == "混":  # Mixed origins
+            konshugo_raw += 1
 
     # 3. POS COUNTS (For JGRI and Matrix)
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
@@ -281,6 +289,8 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     
     # JReadability Formula
     jread = (11.724 + (wps * -0.056) + (pkango * -0.126) + (pwago * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
+    pgairai = (gairaigo_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    pkonshu = (konshugo_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
@@ -292,7 +302,9 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
             "O_raw": o_raw, "O%": round(po, 1), "V_raw": v_raw, "V%": round(pv, 1),
             "P_raw": p_raw, "P%": round(pp, 1),
             "Kango_raw": kango_raw, "Kango%": round(pkango, 1),
-            "Wago_raw": wago_raw, "Wago%": round(pwago, 1)
+            "Wago_raw": wago_raw, "Wago%": round(pwago, 1),
+            "Gairai_raw": gairaigo_raw, "Gairai%": round(pgairai, 1),
+            "Konshu_raw": konshugo_raw, "Konshu%": round(pkonshu, 1)
         },
         "jlpt": jlpt_counts, 
         "rout": rout_counts, 
@@ -382,10 +394,10 @@ if corpus:
             "O(raw)": s["O_raw"], "O%": s["O%"],
             "V(raw)": s["V_raw"], "V%": s["V%"], 
             "P(raw)": s["P_raw"], "P%": s["P%"],
-            "Kango(raw)": s["Kango_raw"], 
-            "Kango%": s["Kango%"],
-            "Wago(raw)": s["Wago_raw"],
-            "Wago%": s["Wago%"],
+            "Kango(raw)": s["Kango_raw"], "Kango%": s["Kango%"],
+            "Wago(raw)": s["Wago_raw"], "Wago%": s["Wago%"],
+            "Gairai(raw)": s["Gairai_raw"], "Gairai%": s["Gairai%"],
+            "Konshu(raw)": s["Konshu_raw"], "Konshu%": s["Konshu%"],
             **data["jgri_base"]
         }
         
@@ -422,6 +434,7 @@ if corpus:
         cols_to_show = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
                         "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
                         "Kango(raw)", "Kango%", "Wago(raw)", "Wago%", # Added these 4
+                        "Gairai(raw)", "Gairai%", "Konshu(raw)", "Konshu%",
                         "V(raw)", "V%", "P(raw)", "P%"] + \
                        [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["(raw)", "%"]] + \
                        [f"TOP-{i}000{s}" for i in range(1, 6) for s in ["(raw)", "%"]] + ["TOP-NA(raw)", "TOP-NA%"]
@@ -483,13 +496,29 @@ if corpus:
         df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
         st.plotly_chart(px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack"), use_container_width=True)
 
-        # Word Origin Distribution Stacked Chart
-        df_o = df_gen.melt(id_vars=["File"], value_vars=["Kango%", "Wago%"], var_name="Origin", value_name="%")
-        fig_origin = px.bar(df_o, x="File", y="%", color="Origin", 
-                            title="Word Origin Distribution (Kango/Wago)", 
-                            barmode="stack",
-                            template="plotly_white",
-                            color_discrete_map={"Kango%": "#EF553B", "Wago%": "#636EFA"})
+# Word Origin Distribution Stacked Chart (Modified for 100% Distribution)
+        df_o = df_gen.melt(
+            id_vars=["File"], 
+            value_vars=["Kango%", "Wago%", "Gairai%", "Konshu%"], # Added Gairai and Konshu
+            var_name="Origin", 
+            value_name="%"
+        )
+        fig_origin = px.bar(
+            df_o, 
+            x="File", 
+            y="%", 
+            color="Origin", 
+            title="Word Origin Distribution (Kango/Wago/Gairai/Konshu)", 
+            barmode="stack",
+            template="plotly_white",
+            # Explicit colors for all 4 categories
+            color_discrete_map={
+                "Kango%": "#EF553B", 
+                "Wago%": "#636EFA",
+                "Gairai%": "#00CC96",
+                "Konshu%": "#AB63FA"
+            }
+        )
         st.plotly_chart(fig_origin, use_container_width=True)
         add_html_download_button(fig_origin, "origin_distribution")
         
