@@ -492,10 +492,12 @@ if corpus:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True); add_html_download_button(fig, col_name)
 
-        # Script/JLPT Charts (Redundant HTML buttons removed for brevity)
+        # Script Distribution Chart (with Download Button)
         df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
-        st.plotly_chart(px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack"), use_container_width=True)
-
+        fig_script = px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack", template="plotly_white")
+        st.plotly_chart(fig_script, use_container_width=True)
+        add_html_download_button(fig_script, "script_distribution")
+        
 # Word Origin Distribution Stacked Chart (Modified for 100% Distribution)
         df_o = df_gen.melt(
             id_vars=["File"], 
@@ -521,10 +523,12 @@ if corpus:
         )
         st.plotly_chart(fig_origin, use_container_width=True)
         add_html_download_button(fig_origin, "origin_distribution")
-        
+# JLPT Distribution Chart (with Download Button)
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
-        st.plotly_chart(px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}), use_container_width=True)
-
+        fig_jlpt = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
+        st.plotly_chart(fig_jlpt, use_container_width=True)
+        add_html_download_button(fig_jlpt, "jlpt_distribution")  
+      
     with tab_pos:
         st.header("14-Tier POS Distribution (%)")
         st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
