@@ -509,9 +509,26 @@ if corpus:
 # Word Origin Distribution Stacked Chart (Modified for 100% Distribution)
         df_o = df_gen.melt(
             id_vars=["File"], 
-            value_vars=["Kango%", "Wago%", "Gairai%", "Konshu%"], # Added Gairai and Konshu
+            # Include the Other category to reach 100%
+            value_vars=["Kango%", "Wago%", "Gairai%", "Konshu%", "OriginOther%"],
             var_name="Origin", 
             value_name="%"
+        )
+        fig_origin = px.bar(
+            df_o, 
+            x="File", 
+            y="%", 
+            color="Origin", 
+            title="Word Origin Distribution (100% Stacked)", 
+            barmode="stack",
+            template="plotly_white",
+            color_discrete_map={
+                "Kango%": "#EF553B", 
+                "Wago%": "#636EFA",
+                "Gairai%": "#00CC96",
+                "Konshu%": "#AB63FA",
+                "OriginOther%": "#E5ECF6" # Light grey for unclassified
+            }
         )
         fig_origin = px.bar(
             df_o, 
