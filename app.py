@@ -281,16 +281,21 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     ph = (h_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pt = (t_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     po = (o_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
-    
+
     pkango = (kango_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pwago = (wago_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pv = (v_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pp = (p_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     
-    # JReadability Formula
+    # JReadability Formula (Stays academically accurate)
     jread = (11.724 + (wps * -0.056) + (pkango * -0.126) + (pwago * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
+    
     pgairai = (gairaigo_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pkonshu = (konshugo_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
+    
+    # NEW: Calculate 'Other' to fill the remaining percentage gap
+    p_other_origin = 100 - (pkango + pwago + pgairai + pkonshu)
+
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
     return {
@@ -304,7 +309,9 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
             "Kango_raw": kango_raw, "Kango%": round(pkango, 1),
             "Wago_raw": wago_raw, "Wago%": round(pwago, 1),
             "Gairai_raw": gairaigo_raw, "Gairai%": round(pgairai, 1),
-            "Konshu_raw": konshugo_raw, "Konshu%": round(pkonshu, 1)
+            "Konshu_raw": konshugo_raw, "Konshu%": round(pkonshu, 1),
+            "OriginOther%": round(max(0, p_other_origin), 1)
+            
         },
         "jlpt": jlpt_counts, 
         "rout": rout_counts, 
@@ -398,6 +405,7 @@ if corpus:
             "Wago(raw)": s["Wago_raw"], "Wago%": s["Wago%"],
             "Gairai(raw)": s["Gairai_raw"], "Gairai%": s["Gairai%"],
             "Konshu(raw)": s["Konshu_raw"], "Konshu%": s["Konshu%"],
+            "OriginOther%": s["OriginOther%"],
             **data["jgri_base"]
         }
         
