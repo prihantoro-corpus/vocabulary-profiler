@@ -30,7 +30,6 @@ JLPT_FILES = {
 ROUTLEDGE_URL = "https://raw.githubusercontent.com/prihantoro-corpus/vocabulary-profiler/main/Routledge%205000%20Vocab%20ONLY.xlsx"
 LOCAL_ROUTLEDGE_CSV = "Routledge 5000 Vocab ONLY.xlsx - Sheet1.csv"
 
-# Comprehensive Part of Speech Mapping
 POS_FULL_MAP = {
     "Noun (名詞)": "名詞",
     "Verb (動詞)": "動詞",
@@ -48,7 +47,6 @@ POS_FULL_MAP = {
     "Symbol/Punc (補助記号)": "補助記号"
 }
 
-# Detailed Tooltips for Matrix Scannability
 TOOLTIPS = {
     "Tokens": "Total valid linguistic tokens (excluding punctuation).",
     "TTR": "Unique Words / Total Words (Lexical Variety).",
@@ -69,7 +67,6 @@ TOOLTIPS = {
     "T%": "Percentage of tokens in Katakana script."
 }
 
-# Add Dynamic Tooltips for JLPT and Routledge Levels
 for l in ["N1","N2","N3","N4","N5","NA"]:
     TOOLTIPS[f"{l}(raw)"] = f"Count of words matching JLPT {l} level."
     TOOLTIPS[f"{l}%"] = f"Percentage of text in JLPT {l} level."
@@ -345,4 +342,6 @@ if corpus:
             df_m['PMW'] = round(df_m['Freq'] / len(filtered) * 1000000, 2)
             c1.dataframe(df_m, use_container_width=True)
             c2.dataframe(pd.DataFrame(concordance), use_container_width=True)
-else: st.info("Please upload files.")
+
+else:
+    st.info("Please upload files.")
