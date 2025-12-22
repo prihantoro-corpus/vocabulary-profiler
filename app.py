@@ -382,11 +382,10 @@ if corpus:
             "O(raw)": s["O_raw"], "O%": s["O%"],
             "V(raw)": s["V_raw"], "V%": s["V%"], 
             "P(raw)": s["P_raw"], "P%": s["P%"],
-            "Kango(raw)": kango_raw, # These variables are available in analyze_text scope
-            "Kango%": round((kango_raw / t_v * 100), 1) if t_v > 0 else 0,
-            "Wago(raw)": wago_raw,
-            "Wago%": round((wago_raw / t_v * 100), 1) if t_v > 0 else 0,
-            **data["jgri_base"]
+            "Kango(raw)": s["Kango_raw"], 
+            "Kango%": s["Kango%"],
+            "Wago(raw)": s["Wago_raw"],
+            "Wago%": s["Wago%"],
         }
         
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
