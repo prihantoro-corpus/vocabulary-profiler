@@ -483,6 +483,16 @@ if corpus:
         df_s = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%", "O%"], var_name="Script", value_name="%")
         st.plotly_chart(px.bar(df_s, x="File", y="%", color="Script", title="Script Distribution", barmode="stack"), use_container_width=True)
 
+        # Word Origin Distribution Stacked Chart
+        df_o = df_gen.melt(id_vars=["File"], value_vars=["Kango%", "Wago%"], var_name="Origin", value_name="%")
+        fig_origin = px.bar(df_o, x="File", y="%", color="Origin", 
+                            title="Word Origin Distribution (Kango/Wago)", 
+                            barmode="stack",
+                            template="plotly_white",
+                            color_discrete_map={"Kango%": "#EF553B", "Wago%": "#636EFA"})
+        st.plotly_chart(fig_origin, use_container_width=True)
+        add_html_download_button(fig_origin, "origin_distribution")
+        
         df_j = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"], var_name="Level", value_name="%")
         st.plotly_chart(px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}), use_container_width=True)
 
