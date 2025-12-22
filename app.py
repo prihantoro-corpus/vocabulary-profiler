@@ -179,19 +179,34 @@ def get_jgri_interp(score):
 def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     nodes = tagger(text)
     all_nodes = []
+    
     for n in nodes:
         if n.surface:
             f = n.feature
+            # Safe extraction of Lemma and Reading
             lemma_orth = f[7] if len(f) >= 8 and f[7] != '*' else n.surface
             reading_kata = f[10] if len(f) >= 11 and f[10] != '*' else ""
-            goshu = f[12] if len(f) > 12 else "" # Extraction for Kango/Wago
             
+            # ROBUST GOSHU EXTRACTION:
+            # We look for the origin tag which is usually at index 12 or 13.
+            # If the list is too short, we default to "Unknown" to prevent the crash.
+            goshu = ""
+            if len(f) > 12:
+                goshu = f[12]
+            elif len(f) > 7:
+                # Fallback: some older UniDic versions have it earlier or later
+                # We check if any field contains the standard labels
+                for field in f:
+                    if field in ["和", "漢", "外", "混"]:
+                        goshu = field
+                        break
+
             all_nodes.append({
                 "surface": n.surface,
                 "lemma": lemma_orth,
                 "reading": reading_kata,
                 "pos": f[0],
-                "goshu": goshu,
+                "goshu": goshu, # This will now always exist
                 "file": filename
             })
     
@@ -205,15 +220,18 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     kango_raw, wago_raw = 0, 0
     
     for n in valid_nodes:
-        # Script Analysis (for visualization)
+        # Script Analysis
         if re.search(r'[\u4e00-\u9faf]', n['surface']): k_raw += 1
         elif re.search(r'[\u3040-\u309f]', n['surface']): h_raw += 1
         elif re.search(r'[\u30a0-\u30ff]', n['surface']): t_raw += 1
         else: o_raw += 1
             
-        # Etymology Analysis (for jReadability Formula)
-        if "漢" in n['goshu']: kango_raw += 1
-        elif "和" in n['goshu']: wago_raw += 1
+        # Origin Analysis - Added safe check for None/Empty
+        current_goshu = n.get('goshu', "")
+        if current_goshu and "漢" in current_goshu: 
+            kango_raw += 1
+        elif current_goshu and "和" in current_goshu: 
+            wago_raw += 1
 
     # 2. POS Counts
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
@@ -252,13 +270,12 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     pt = (t_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     po = (o_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     
-    # Origin Percentages for Lee & Hasebe Variables b and c
     pkango = (kango_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pwago = (wago_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pv = (v_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     pp = (p_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     
-    # FORMULA: 11.724 - 0.056a - 0.126b - 0.042c - 0.145d - 0.044e
+    # JReadability Formula
     jread = (11.724 + (wps * -0.056) + (pkango * -0.126) + (pwago * -0.042) + (pv * -0.145) + (pp * -0.044)) if total_tokens_valid > 0 else 0
     content_words = sum(1 for n in valid_nodes if n['pos'] in ["名詞", "動詞", "形容詞", "副詞", "形状詞"])
 
