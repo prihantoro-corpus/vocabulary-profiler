@@ -264,60 +264,53 @@ if corpus:
     df_gen["JGRI Interp"] = df_gen["JGRI"].apply(get_jgri_interp)
 
     t1, t2, t3 = st.tabs(["📊 Matrix", "📈 Charts", "🔍 Search"])
+    
     with t1:
+        st.header("Analysis Matrix")
         cols = ["File", "Tokens", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS (a)", "Kango% (b)", "Wago% (c)", "V% (d)", "P% (e)", "K%", "H%", "T%"]
         st.dataframe(df_gen[cols], column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
+        # Matrix Download Button
+        st.download_button(label="📥 Download Full Matrix (CSV)", data=df_gen.to_csv(index=False).encode('utf-8-sig'), file_name="analysis_matrix.csv", mime="text/csv")
 
     with t2:
         st.header("📈 Visualizations & Metrics")
         
-        # 1. Linguistic Origin Chart (Variable b & c)
+        # 1. Linguistic Origin Chart
         st.subheader("Linguistic Origin Distribution")
         df_etym = df_gen.melt(id_vars=["File"], value_vars=["Kango% (b)", "Wago% (c)"])
-        fig_origin = px.bar(df_etym, x="File", y="value", color="variable", barmode="group", 
-                            title="Sino-Japanese (Kango) vs. Native (Wago)")
+        fig_origin = px.bar(df_etym, x="File", y="value", color="variable", barmode="group", title="Sino-Japanese (Kango) vs. Native (Wago)")
         st.plotly_chart(fig_origin, use_container_width=True)
         add_html_download_button(fig_origin, "Kango_Wago_Dist")
         
-        # 2. Main Metrics Bar Charts (Tokens, TTR, MTLD, Readability, JGRI)
-        metric_list = [
-            ("Tokens", "Total Tokens Count"),
-            ("TTR", "Type-Token Ratio (Lexical Variety)"),
-            ("MTLD", "Measure of Textual Lexical Diversity (MTLD)"),
-            ("Readability", "jReadability Score (Higher = Easier)"),
-            ("JGRI", "Syntactic Complexity (JGRI)")
-        ]
-        
+        # 2. Main Metrics (Loop)
+        metric_list = [("Tokens", "Total Tokens Count"), ("TTR", "Type-Token Ratio"), ("MTLD", "Lexical Diversity (MTLD)"), ("Readability", "jReadability Score"), ("JGRI", "Syntactic Complexity (JGRI)")]
         for col_name, title_name in metric_list:
             fig = px.bar(df_gen, x="File", y=col_name, title=title_name, template="plotly_white")
             st.plotly_chart(fig, use_container_width=True)
             add_html_download_button(fig, col_name)
 
-        # 3. Stacked Proficiency Charts (JLPT & Routledge)
+        # 3. Stacked Profiling Charts
         st.divider()
         st.subheader("Proficiency & Frequency Profiling")
-        
-        # JLPT Stacked Chart
         df_jlpt = df_gen.melt(id_vars=["File"], value_vars=["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"])
         fig_jlpt = px.bar(df_jlpt, x="File", y="value", color="variable", title="JLPT Distribution (%)", barmode="stack")
         st.plotly_chart(fig_jlpt, use_container_width=True)
         add_html_download_button(fig_jlpt, "JLPT_Distribution")
         
-        # Routledge Stacked Chart
         df_rout = df_gen.melt(id_vars=["File"], value_vars=[f"TOP-{i}000%" for i in range(1, 6)] + ["TOP-NA%"])
         fig_rout = px.bar(df_rout, x="File", y="value", color="variable", title="Routledge Frequency Profiling (%)", barmode="stack")
         st.plotly_chart(fig_rout, use_container_width=True)
         add_html_download_button(fig_rout, "Routledge_Profiling")
 
-        # 4. Orthographic Script Distribution
+        # 4. Script Distribution
         st.divider()
         st.subheader("Orthographic Distribution")
         df_script = df_gen.melt(id_vars=["File"], value_vars=["K%", "H%", "T%"])
-        fig_script = px.bar(df_script, x="File", y="value", color="variable", title="Script Distribution (%) (Kanji/Hira/Kata)", barmode="stack")
+        fig_script = px.bar(df_script, x="File", y="value", color="variable", title="Script Distribution (%)", barmode="stack")
         st.plotly_chart(fig_script, use_container_width=True)
         add_html_download_button(fig_script, "Script_Distribution")
 
-        # 5. Word Cloud with PNG Download
+        # 5. Word Cloud
         st.divider()
         st.subheader("Content Word Cloud")
         cloud_toks = [t['surface'] for t in glob_toks if t['pos'] in ["名詞", "動詞", "形容詞"]]
@@ -327,13 +320,12 @@ if corpus:
             ax.imshow(wc, interpolation='bilinear')
             ax.axis("off")
             st.pyplot(fig_wc)
-            
-            # Image download logic
             img_buf = io.BytesIO()
             plt.savefig(img_buf, format='png', bbox_inches='tight')
             st.download_button(label="📥 Download Wordcloud (PNG)", data=img_buf.getvalue(), file_name="wordcloud.png", mime="image/png")
 
     with t3:
+        st.header("Search & KWIC Analysis")
         filtered = [t for t in glob_toks if t['pos'] != "補助記号"]
         matches, concordance = [], []
         for j in range(len(filtered) - n_s + 1):
