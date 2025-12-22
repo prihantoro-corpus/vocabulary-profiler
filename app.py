@@ -356,7 +356,8 @@ if corpus:
         text_for_lex = " ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])
         lr = LexicalRichness(text_for_lex) if len(text_for_lex.split()) > 10 else None
         
-row = {
+# Ensure all these lines have the exact same level of indentation
+        row = {
             "File": item['name'], 
             "Tokens": t_v,
             "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
@@ -387,15 +388,17 @@ row = {
             l = f"TOP-{i}000"
             row[f"{l}(raw)"] = data["rout"][l]
             row[f"{l}%"] = round((data["rout"][l]/t_v*100), 1) if t_v > 0 else 0
+
         row["TOP-NA(raw)"] = data["rout"]["TOP-NA"]
         row["TOP-NA%"] = round((data["rout"]["TOP-NA"]/t_v*100), 1) if t_v > 0 else 0
         
         res_gen.append(row)
+        
         p_row = {"File": item['name']}
         for label, count in data["pos_raw"].items():
             p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
         res_pos.append(p_row)
-
+        
     df_gen = pd.DataFrame(res_gen)
     jgri_cols = ["MMS", "LD", "VPS", "MPN"]
     for c in jgri_cols:
@@ -409,11 +412,16 @@ row = {
     
     with tab_mat:
         st.header("Analysis Matrix")
-        cols_to_show = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
-                        "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
-                        "V(raw)", "V%", "P(raw)", "P%"] + \
-                       [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["(raw)", "%"]] + \
-                       [f"TOP-{i}000{s}" for i in range(1, 6) for s in ["(raw)", "%"]] + ["TOP-NA(raw)", "TOP-NA%"]
+# COMBINED MATRIX COLUMNS: Original + Lee & Hasebe Variables
+        cols_to_show = [
+            "File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", 
+            "WPS (a)", "Kango% (b)", "Wago% (c)", "V% (d)", "P% (e)",
+            "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
+            "V(raw)", "P(raw)"
+        ] + \
+        [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["(raw)", "%"]] + \
+        [f"TOP-{i}000{s}" for i in range(1, 6) for s in ["(raw)", "%"]] + \
+        ["TOP-NA(raw)", "TOP-NA%"]
         
         st.dataframe(df_gen[cols_to_show], column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
 
