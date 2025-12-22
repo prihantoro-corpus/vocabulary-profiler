@@ -386,6 +386,7 @@ if corpus:
             "Kango%": s["Kango%"],
             "Wago(raw)": s["Wago_raw"],
             "Wago%": s["Wago%"],
+            **data["jgri_base"]
         }
         
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
