@@ -356,16 +356,27 @@ if corpus:
         text_for_lex = " ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])
         lr = LexicalRichness(text_for_lex) if len(text_for_lex.split()) > 10 else None
         
-        row = {
-            "File": item['name'], "Tokens": t_v,
+row = {
+            "File": item['name'], 
+            "Tokens": t_v,
             "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
             "MTLD": round(lr.mtld(), 2) if lr else 0,
-            "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]),
-            "WPS": data["stats"]["WPS"], "K(raw)": data["stats"]["K_raw"], "K%": data["stats"]["K%"],
-            "H(raw)": data["stats"]["H_raw"], "H%": data["stats"]["H%"], "T(raw)": data["stats"]["T_raw"],
-            "T%": data["stats"]["T%"], "O(raw)": data["stats"]["O_raw"], "O%": data["stats"]["O%"],
-            "V(raw)": data["stats"]["V_raw"], "V%": data["stats"]["V%"], "P(raw)": data["stats"]["P_raw"],
-            "P%": data["stats"]["P%"], **data["jgri_base"]
+            "Readability": data["stats"]["Read"], 
+            "J-Level": get_jread_level(data["stats"]["Read"]),
+            "WPS (a)": data["stats"]["WPS"],        # Variable a
+            "Kango% (b)": data["stats"]["Kango%"],  # Variable b
+            "Wago% (c)": data["stats"]["Wago%"],    # Variable c
+            "V% (d)": data["stats"]["V%"],          # Variable d
+            "P% (e)": data["stats"]["P%"],          # Variable e
+            "K(raw)": data["stats"]["K_raw"], 
+            "K%": data["stats"]["K%"],
+            "H(raw)": data["stats"]["H_raw"], 
+            "H%": data["stats"]["H%"], 
+            "T(raw)": data["stats"]["T_raw"],
+            "T%": data["stats"]["T%"], 
+            "O(raw)": data["stats"]["O_raw"], 
+            "O%": data["stats"]["O%"],
+            **data["jgri_base"]
         }
         
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
