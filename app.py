@@ -268,7 +268,7 @@ if corpus:
         cols = ["File", "Tokens", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS (a)", "Kango% (b)", "Wago% (c)", "V% (d)", "P% (e)", "K%", "H%", "T%"]
         st.dataframe(df_gen[cols], column_config={k: st.column_config.NumberColumn(k, help=v) for k, v in TOOLTIPS.items()}, use_container_width=True)
 
-with t2:
+    with t2:
         st.header("📈 Visualizations & Metrics")
         
         # 1. Linguistic Origin Chart (Variable b & c)
