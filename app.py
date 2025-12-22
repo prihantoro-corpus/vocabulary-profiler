@@ -67,7 +67,11 @@ TOOLTIPS = {
     "V(raw)": "Raw count of Verbs.",
     "V%": "Verb density percentage.",
     "P(raw)": "Raw count of Particles.",
-    "P%": "Particle density percentage."
+    "P%": "Particle density percentage.",
+    "Kango(raw)": "Count of Sino-Japanese words (漢語).",
+    "Kango%": "Percentage of Sino-Japanese words.",
+    "Wago(raw)": "Count of Native Japanese words (和語).",
+    "Wago%": "Percentage of Native Japanese words."
 }
 
 # Add JLPT and Routledge Tooltips
@@ -180,6 +184,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
     nodes = tagger(text)
     all_nodes = []
     
+    # 1. MORPHOLOGICAL ANALYSIS & FEATURE EXTRACTION
     for n in nodes:
         if n.surface:
             f = n.feature
@@ -187,15 +192,11 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
             lemma_orth = f[7] if len(f) >= 8 and f[7] != '*' else n.surface
             reading_kata = f[10] if len(f) >= 11 and f[10] != '*' else ""
             
-            # ROBUST GOSHU EXTRACTION:
-            # We look for the origin tag which is usually at index 12 or 13.
-            # If the list is too short, we default to "Unknown" to prevent the crash.
+            # BULLETPROOF GOSHU (ORIGIN) EXTRACTION
             goshu = ""
-            if len(f) > 12:
+            if len(f) > 12 and f[12] in ["和", "漢", "外", "混"]:
                 goshu = f[12]
             elif len(f) > 7:
-                # Fallback: some older UniDic versions have it earlier or later
-                # We check if any field contains the standard labels
                 for field in f:
                     if field in ["和", "漢", "外", "混"]:
                         goshu = field
@@ -206,16 +207,17 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 "lemma": lemma_orth,
                 "reading": reading_kata,
                 "pos": f[0],
-                "goshu": goshu, # This will now always exist
+                "goshu": goshu,
                 "file": filename
             })
     
+    # PREPARING SUBSETS
     valid_nodes = [n for n in all_nodes if n['pos'] != "補助記号"]
     sentences = [s for s in re.split(r'[。！？\n]', text.strip()) if s.strip()]
     num_sentences = len(sentences) if sentences else 1
     total_tokens_valid = len(valid_nodes)
     
-    # 1. Script & Origin Counts
+    # 2. SCRIPT & ORIGIN COUNTS
     k_raw, h_raw, t_raw, o_raw = 0, 0, 0, 0
     kango_raw, wago_raw = 0, 0
     
@@ -226,24 +228,25 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
         elif re.search(r'[\u30a0-\u30ff]', n['surface']): t_raw += 1
         else: o_raw += 1
             
-        # Origin Analysis - Added safe check for None/Empty
+        # Origin Analysis
         current_goshu = n.get('goshu', "")
-        if current_goshu and "漢" in current_goshu: 
+        if current_goshu == "漢": 
             kango_raw += 1
-        elif current_goshu and "和" in current_goshu: 
+        elif current_goshu == "和": 
             wago_raw += 1
 
-    # 2. POS Counts
+    # 3. POS COUNTS (For JGRI and Matrix)
     pos_counts_raw = {k: sum(1 for n in all_nodes if n['pos'] == v) for k, v in POS_FULL_MAP.items()}
     v_raw = pos_counts_raw.get("Verb (動詞)", 0)
     p_raw = pos_counts_raw.get("Particle (助詞)", 0)
     
-    # 3. Profiling (JLPT & Routledge)
+    # 4. PROFILING (JLPT & ROUTLEDGE)
     jlpt_counts = {lvl: 0 for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]}
     rout_counts = {f"TOP-{i}000": 0 for i in range(1, 6)}
     rout_counts["TOP-NA"] = 0
 
     for n in valid_nodes:
+        # JLPT Match
         found_jlpt = False
         for lvl in ["N1", "N2", "N3", "N4", "N5"]:
             if n['lemma'] in jlpt_lists[lvl] or n['surface'] in jlpt_lists[lvl]:
@@ -252,6 +255,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                 break
         if not found_jlpt: jlpt_counts["NA"] += 1
 
+        # Routledge Match
         found_rout = False
         r_hira = katakana_to_hiragana(n['reading'])
         for check in [n['surface'], n['lemma'], r_hira, n['reading']]:
@@ -263,7 +267,7 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
                     break
         if not found_rout: rout_counts["TOP-NA"] += 1
 
-    # Final calculations
+    # 5. FINAL CALCULATIONS
     wps = total_tokens_valid / num_sentences
     pk = (k_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
     ph = (h_raw / total_tokens_valid * 100) if total_tokens_valid > 0 else 0
@@ -286,13 +290,18 @@ def analyze_text(text, filename, tagger, jlpt_lists, routledge_list):
             "Read": round(jread, 3), "K_raw": k_raw, "K%": round(pk, 1),
             "H_raw": h_raw, "H%": round(ph, 1), "T_raw": t_raw, "T%": round(pt, 1),
             "O_raw": o_raw, "O%": round(po, 1), "V_raw": v_raw, "V%": round(pv, 1),
-            "P_raw": p_raw, "P%": round(pp, 1)
+            "P_raw": p_raw, "P%": round(pp, 1),
+            "Kango_raw": kango_raw, "Kango%": round(pkango, 1),
+            "Wago_raw": wago_raw, "Wago%": round(pwago, 1)
         },
-        "jlpt": jlpt_counts, "rout": rout_counts, "pos_raw": pos_counts_raw,
+        "jlpt": jlpt_counts, 
+        "rout": rout_counts, 
+        "pos_raw": pos_counts_raw,
         "jgri_base": {
-            "MMS": wps, "LD": content_words / total_tokens_valid if total_tokens_valid > 0 else 0,
+            "MMS": wps, 
+            "LD": content_words / total_tokens_valid if total_tokens_valid > 0 else 0,
             "VPS": v_raw / num_sentences,
-            "MPN": pos_counts_raw.get("Adverb (副詞)", 0) / pos_counts_raw.get("Noun (名詞)", 1)
+            "MPN": pos_counts_raw.get("Adverb (副詞)", 0) / max(pos_counts_raw.get("Noun (名詞)", 1), 1)
         }
     }
 
@@ -356,16 +365,28 @@ if corpus:
         text_for_lex = " ".join([t['surface'] for t in data["all_tokens"] if t['pos'] != "補助記号"])
         lr = LexicalRichness(text_for_lex) if len(text_for_lex.split()) > 10 else None
         
+# Extract variables from data['stats'] for cleaner mapping
+        s = data["stats"]
+        
         row = {
-            "File": item['name'], "Tokens": t_v,
+            "File": item['name'], 
+            "Tokens": t_v,
             "TTR": round(len(set([t['lemma'] for t in data["all_tokens"] if t['pos'] != "補助記号"]))/t_v, 3) if t_v > 0 else 0,
             "MTLD": round(lr.mtld(), 2) if lr else 0,
-            "Readability": data["stats"]["Read"], "J-Level": get_jread_level(data["stats"]["Read"]),
-            "WPS": data["stats"]["WPS"], "K(raw)": data["stats"]["K_raw"], "K%": data["stats"]["K%"],
-            "H(raw)": data["stats"]["H_raw"], "H%": data["stats"]["H%"], "T(raw)": data["stats"]["T_raw"],
-            "T%": data["stats"]["T%"], "O(raw)": data["stats"]["O_raw"], "O%": data["stats"]["O%"],
-            "V(raw)": data["stats"]["V_raw"], "V%": data["stats"]["V%"], "P(raw)": data["stats"]["P_raw"],
-            "P%": data["stats"]["P%"], **data["jgri_base"]
+            "Readability": s["Read"], 
+            "J-Level": get_jread_level(s["Read"]),
+            "WPS": s["WPS"], 
+            "K(raw)": s["K_raw"], "K%": s["K%"],
+            "H(raw)": s["H_raw"], "H%": s["H%"], 
+            "T(raw)": s["T_raw"], "T%": s["T%"], 
+            "O(raw)": s["O_raw"], "O%": s["O%"],
+            "V(raw)": s["V_raw"], "V%": s["V%"], 
+            "P(raw)": s["P_raw"], "P%": s["P%"],
+            "Kango(raw)": kango_raw, # These variables are available in analyze_text scope
+            "Kango%": round((kango_raw / t_v * 100), 1) if t_v > 0 else 0,
+            "Wago(raw)": wago_raw,
+            "Wago%": round((wago_raw / t_v * 100), 1) if t_v > 0 else 0,
+            **data["jgri_base"]
         }
         
         for lvl in ["N1", "N2", "N3", "N4", "N5", "NA"]:
@@ -400,6 +421,7 @@ if corpus:
         st.header("Analysis Matrix")
         cols_to_show = ["File", "Tokens", "TTR", "MTLD", "Readability", "J-Level", "JGRI", "JGRI Interp", "WPS",
                         "K(raw)", "K%", "H(raw)", "H%", "T(raw)", "T%", "O(raw)", "O%",
+                        "Kango(raw)", "Kango%", "Wago(raw)", "Wago%", # Added these 4
                         "V(raw)", "V%", "P(raw)", "P%"] + \
                        [f"{l}{s}" for l in ["N1","N2","N3","N4","N5","NA"] for s in ["(raw)", "%"]] + \
                        [f"TOP-{i}000{s}" for i in range(1, 6) for s in ["(raw)", "%"]] + ["TOP-NA(raw)", "TOP-NA%"]
