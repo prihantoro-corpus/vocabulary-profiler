@@ -554,8 +554,40 @@ if corpus:
         st.plotly_chart(fig_jlpt, use_container_width=True)
         add_html_download_button(fig_jlpt, "jlpt_distribution")  
       
+
     with tab_pos:
         st.header("14-Tier POS Distribution (%)")
-        st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
+        df_pos_viz = pd.DataFrame(res_pos)
+        st.dataframe(df_pos_viz, use_container_width=True)
+
+        st.divider()
+        st.subheader("POS Distribution Visualization")
+
+        # Melt the dataframe for Plotly: Files as rows, POS tags as color segments
+        # We exclude 'File' from the value_vars to plot all POS percentages
+        pos_cols = [c for c in df_pos_viz.columns if c != "File"]
+        df_pos_melted = df_pos_viz.melt(id_vars=["File"], value_vars=pos_cols, var_name="POS Tag", value_name="%")
+
+        # Create Horizontal Stacked Bar Chart
+        # x="%" makes the bars horizontal, y="File" puts filenames on the vertical axis
+        fig_pos = px.bar(
+            df_pos_melted, 
+            y="File", 
+            x="%", 
+            color="POS Tag", 
+            title="14-Tier POS Distribution per File (100% Stacked)",
+            orientation='h',
+            barmode="stack",
+            template="plotly_white",
+            height=max(400, len(df_pos_viz) * 50) # Adjust height based on number of files
+        )
+
+        # Update layout to ensure the X-axis stays at 100%
+        fig_pos.update_layout(xaxis_range=[0, 100], xaxis_title="Percentage (%)", yaxis_title="File Name")
+
+        st.plotly_chart(fig_pos, use_container_width=True)
+        
+        # Add the HTML Download Button
+        add_html_download_button(fig_pos, "pos_distribution_chart")
 else:
     st.info("Upload files to begin.")
