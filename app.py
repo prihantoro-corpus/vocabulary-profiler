@@ -422,11 +422,10 @@ if corpus:
         
         res_gen.append(row)
         p_row = {"File": item['name']}
-        for label in POS_FULL_MAP.keys(): # Iterate through the map keys to ensure all 14 tags exist
-            count = data["pos_raw"].get(label, 0)
+        for label, count in data["pos_raw"].items():
             p_row[f"{label} [%]"] = round((count/t_a*100), 2) if t_a > 0 else 0
         res_pos.append(p_row)
-        
+
     df_gen = pd.DataFrame(res_gen)
     jgri_cols = ["MMS", "LD", "VPS", "MPN"]
     for c in jgri_cols:
@@ -554,40 +553,9 @@ if corpus:
         fig_jlpt = px.bar(df_j, x="File", y="%", color="Level", title="JLPT Distribution", barmode="stack", category_orders={"Level": ["N1%", "N2%", "N3%", "N4%", "N5%", "NA%"]}, template="plotly_white")
         st.plotly_chart(fig_jlpt, use_container_width=True)
         add_html_download_button(fig_jlpt, "jlpt_distribution")  
-
-with tab_pos:
+      
+    with tab_pos:
         st.header("14-Tier POS Distribution (%)")
-        df_pos_viz = pd.DataFrame(res_pos)
-        st.dataframe(df_pos_viz, use_container_width=True)
-
-        st.divider()
-        st.subheader("POS Distribution Visualization")
-
-        # Dynamically identify the POS percentage columns
-        pos_cols = [c for c in df_pos_viz.columns if c != "File"]
-        
-        # Melt dataframe: Files on Y-axis, Percentage on X-axis
-        df_pos_melted = df_pos_viz.melt(id_vars=["File"], value_vars=pos_cols, var_name="POS Tag", value_name="%")
-
-        fig_pos = px.bar(
-            df_pos_melted, 
-            y="File", 
-            x="%", 
-            color="POS Tag", 
-            title="14-Tier POS Distribution per File (100% Stacked)",
-            orientation='h', # Sets the bars to horizontal
-            barmode="stack",
-            template="plotly_white",
-            height=max(400, len(df_pos_viz) * 40) # Ensures readability with many files
-        )
-
-        # Force the X-axis to show the full 0-100% range
-        fig_pos.update_layout(xaxis_range=[0, 100], xaxis_title="Percentage (%)", yaxis_title="File Name")
-
-        st.plotly_chart(fig_pos, use_container_width=True)
-        
-        # Add HTML Download Button for the image
-        add_html_download_button(fig_pos, "pos_distribution_full")
-
+        st.dataframe(pd.DataFrame(res_pos), use_container_width=True)
 else:
     st.info("Upload files to begin.")
