@@ -3389,7 +3389,7 @@ if st.session_state['view'] == 'dictionary':
     </div>
     """
     
-    st.html(summary_html)
+    st.markdown(summary_html, unsafe_allow_html=True)
     
     # Interaction: Sentence Lookups (Integrated but clickable)
     st.markdown("### 🔍 Sentence Lookups")
